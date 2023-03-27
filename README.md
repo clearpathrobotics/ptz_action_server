@@ -58,7 +58,5 @@ Supported Implementations
 
 This repository contains action server implementations that communicate with underlying ROS hardware drivers:
 - axiz_ptz_action_server: interacts with the axis_camera driver, supporting most Axis PTZ cameras that use ethernet
-- pelcod_ptz_action_server: interacts with any camera that uses the pelco_d_controls package, including the Infinity Optics
-  Proton PTZ camera
 - flir_ptu_action_server: interacts with the Flir D46 and E46 PTUs, supported by the flir_ptu package, either over serial
   or ethernet.
