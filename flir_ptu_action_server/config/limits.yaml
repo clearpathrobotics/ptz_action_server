@@ -1,0 +1,17 @@
+# Limits for the PTU to ensure commands don't send it out of range
+# These limits are for the Flir D46 and E46 PTU
+# see https://www.sustainable-robotics.com/reference/PTU/ptu_d46_datasheet.pdf for range limits
+# we assume the extended range mod is not present
+
+# -159 to 159 degree pan
+min_pan: -2.775073510670984
+max_pan: 2.775073510670984
+
+# -47 to 31 degree tilt
+min_tilt: -0.8203047484373349
+max_tilt: 0.5410520681182421
+
+# Optionally invert the pan/tilt angles
+# e.g. if a camera is mounted backwards the tilt may need to be inverted
+invert_pan: false
+invert_tilt: false

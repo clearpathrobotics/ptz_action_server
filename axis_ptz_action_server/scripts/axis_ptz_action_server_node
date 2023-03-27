@@ -1,0 +1,202 @@
+#!/usr/bin/env python3
+
+import rospy
+import actionlib
+
+from axis_camera.msg import Axis
+from ptz_action_server_msgs.msg import PtzAction, PtzFeedback, PtzActionGoal, PtzResult
+from ptz_action_server_msgs.msg import PtzPosition
+
+from math import pi
+from math import degrees as rad2deg
+from math import radians as deg2rad
+
+def state_callback(data, node):
+    node.state_callback(data)
+
+def linear_rescale(x, old_min, old_max, new_min, new_max):
+    return (x-old_min) / (old_max - old_min) * (new_max - new_min) + new_min
+
+# maximum range of motion of the Axis PTZ dome cameras
+MAX_TILT = deg2rad(90)
+MIN_TILT = deg2rad(0)
+MIN_PAN = deg2rad(-170)
+MAX_PAN = deg2rad(170)
+HW_MIN_ZOOM = 1.0
+HW_MAX_ZOOM = 9999.0
+MIN_ZOOM = 1.0
+MAX_ZOOM = 24.0
+
+def clamp(x, min, max, metavar):
+    if x < min:
+        rospy.logwarn('Requested {0}={1} is too small. Clamping to {2}'.format(metavar,x, min))
+        return min
+    elif x > max:
+        rospy.logwarn('Requested {0}={1} is too large. Clamping to {2}'.format(metavar,x, max))
+        return max
+    else:
+        return x
+
+## Provides a PTZ.action compatible interface for sending pan-tilt-zoom positions to the axis_camera driver
+class AxisPtzControlNode:
+    def __init__(self):
+        self.cmd_topic = rospy.get_param('~cmd_topic', '/axis/cmd')
+        self.status_topic = rospy.get_param('~status_topic', '/axis/state')
+        self.act_ns = rospy.get_param('~act_ns', '/axis')
+        self.invert_tilt = rospy.get_param('~invert_tilt', False)
+        self.invert_pan = rospy.get_param('~invert_pan', False)
+
+        # allow 1 degree of error when tracking the position feedback
+        # this is a little coarse, but the camera isn't a high-precision piece of kit anyway
+        self.position_tolerance = deg2rad(1.0)
+
+        # allow some tolerance in the zoom. This is a big range
+        self.zoom_tolerance = 10.0
+
+        self.goal_pan = 0.0
+        self.goal_tilt = 0.0
+        self.goal_zoom = 1.0
+
+        # the camera's current state as reported by the underlying driver
+        # initially None so we don't accidentally overwrite e.g. focus or brightness
+        self.last_axis_state = None
+
+        # The current logical PTZ state
+        self.ptz_state = PtzPosition(0, 0, 1)
+
+        # is the camera currently moving?
+        self.is_moving = False
+
+        self.ptz_srv = actionlib.SimpleActionServer('{0}/move_ptz'.format(self.act_ns), PtzAction, self.ptz_actionHandler, False)
+
+
+    ## Starts the subscribers, publishers, and service handlers
+    def start(self):
+        self.cmd_pub = rospy.Publisher(self.cmd_topic, Axis, queue_size=1)
+        self.status_sub = rospy.Subscriber(self.status_topic, Axis, state_callback, self)
+        self.status_pub = rospy.Publisher('{0}/ptz_state'.format(self.act_ns), PtzPosition, queue_size=1)
+        self.ptz_srv.start()
+
+
+    ## Monitors /axis/state to determine if the pan and tilt joints have reached their goal positions yet
+    #  Also saves the current state to self.last_axis_state
+    #
+    # \param data  The Axis.msg information received on the topic
+    def state_callback(self, data):
+        self.last_axis_state = data
+
+        pan = deg2rad(data.pan)
+        tilt = deg2rad(data.tilt)
+        zoom = linear_rescale(data.zoom, HW_MIN_ZOOM, HW_MAX_ZOOM, MIN_ZOOM, MAX_ZOOM)
+
+        # by default the underlying Axis driver uses + as right, but we use
+        # + as left
+        if not self.invert_pan:
+            pan = -pan
+
+        # invert the tilt if necessary
+        if self.invert_tilt:
+            tilt = -tilt
+
+        dpan = abs(pan - self.goal_pan)
+        dtilt = abs(tilt - self.goal_tilt)
+        dzoom = abs(zoom - self.goal_zoom)
+
+        if self.is_moving:
+            if dpan <= self.position_tolerance and dtilt <= self.position_tolerance and dzoom <= self.zoom_tolerance:
+                rospy.loginfo("PTZ reached goal!")
+                self.is_moving = False
+
+        # publish the current PTZ state
+        self.ptz_state.pan = pan
+        self.ptz_state.tilt = tilt
+        self.ptz_state.zoom = zoom
+        self.status_pub.publish(self.ptz_state)
+
+
+    ## Handles PTZ.action requests
+    #  Converts the PTZ goal into an Axis.msg we write to the axis_camera driver
+    #  and then wait until the feedback topic reports that the PTU has finished moving
+    #
+    #  \param ptz_req  The PtzGoal object to process
+    def ptz_actionHandler(self, ptz_req):
+        if self.last_axis_state == None:
+            rospy.logwarn('Still waiting for initial state from the camera. Cannot move yet')
+            ptz_resp = PtzResult()
+            ptz_resp.success = False
+            self.ptz_srv.set_aborted(ptz_resp, 'Still waiting for initial state from the camera. Cannot move yet')
+
+        else:
+            self.goal_pan = clamp(ptz_req.pan, MIN_PAN, MAX_PAN, 'pan')
+            self.goal_tilt = clamp(ptz_req.tilt, MIN_TILT, MAX_TILT, 'tilt')
+            self.goal_zoom = clamp(ptz_req.zoom, MIN_ZOOM, MAX_ZOOM, 'zoom')
+
+            cmd = self.ptz_to_axis()
+
+            self.is_moving = True
+            self.cmd_pub.publish(cmd)
+
+            # sleep until joint_states reports that the pan and tilt joints have reached the desired position OR
+            # have stopped moving
+            rate = rospy.Rate(10)
+            while self.is_moving and not self.ptz_srv.is_preempt_requested():
+                feedback = PtzFeedback()
+                feedback.zoom_remaining = self.goal_zoom - self.ptz_state.zoom
+                feedback.pan_remaining = self.goal_pan - deg2rad(self.ptz_state.pan)
+                feedback.tilt_remaining = self.goal_tilt - deg2rad(self.ptz_state.tilt)
+                self.ptz_srv.publish_feedback(feedback)
+                rate.sleep()
+
+            if self.ptz_srv.is_preempt_requested():
+                rospy.logwarn("PTZ action cancelled")
+                self.is_moving = False
+                self.ptz_srv.set_preempted()
+            else:
+                ptz_resp = PtzResult()
+                ptz_resp.success = True
+                self.ptz_srv.set_succeeded(ptz_resp)
+
+
+    ## Convert the PtzResult to an Axis message we can write back to the driver
+    #
+    # \param  ptz_req   The PtzResult received from the service handler
+    # \return an Axis object corresponding to the requested PTZ position
+    def ptz_to_axis(self):
+        axis = Axis()
+
+        pan = rad2deg(self.goal_pan)
+        tilt = rad2deg(self.goal_tilt)
+        zoom = linear_rescale(self.goal_zoom, MIN_ZOOM, MAX_ZOOM, HW_MIN_ZOOM, HW_MAX_ZOOM)
+
+        # by default the underlying Axis driver uses + as right, but we use
+        # + as left
+        if not self.invert_pan:
+            pan = -pan
+
+        # invert the tilt if necessary
+        if self.invert_tilt:
+            tilt = -tilt
+
+        # set the PTZ values
+        axis.pan = pan
+        axis.tilt = tilt
+        axis.zoom = zoom
+
+        # copy the other camera settings from the current state
+        axis.autofocus = self.last_axis_state.autofocus
+        axis.autoiris = self.last_axis_state.autoiris
+        axis.brightness = self.last_axis_state.brightness
+        axis.focus = self.last_axis_state.focus
+        axis.iris = self.last_axis_state.iris
+
+        return axis
+
+
+def main():
+    rospy.init_node('axis_ptz_action_server_node', anonymous=True)
+    node = AxisPtzControlNode()
+    node.start()
+    rospy.spin()
+
+if __name__=='__main__':
+    main()

@@ -1,0 +1,27 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="cmd_srv" default="/proton_ptz/ptz_server" />
+  <arg name="position_topic" default="/proton_ptz/ptz_joint_state" />
+  <arg name="zoom_topic" default="/proton_ptz/ptz_zoom_state" />
+  <arg name="act_ns" default="/proton_ptz" />
+  <arg name="pan_joint" default="pan" />
+  <arg name="tilt_joint" default="tilt" />
+  <arg name="limits" default="$(find pelcod_ptz_action_server)/config/limits.yaml" />
+
+  <group ns="$(arg act_ns)">
+    <node name="pelcod_ptz_action_server_node" pkg="pelcod_ptz_action_server" type="pelcod_ptz_action_server_node">
+      <param name="cmd_srv" value="$(arg cmd_srv)" />
+      <param name="position_topic" value="$(arg position_topic)" />
+      <param name="zoom_topic" value="$(arg zoom_topic)" />
+      <param name="pan_joint" value="$(arg pan_joint)" />
+      <param name="tilt_joint" value="$(arg tilt_joint)" />
+      <param name="act_ns" value="$(arg act_ns)" />
+
+      <param name="pan_joint" value="proton_ptz_pan_joint" />
+      <param name="tilt_joint" value="proton_ptz_tilt_joint" />
+
+      <!-- Load PTZ limits from a file -->
+      <rosparam command="load" file="$(arg limits)" />
+    </node>
+  </group>
+</launch>

@@ -1,0 +1,20 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="cmd_topic" default="/ptu/cmd" />
+  <arg name="act_ns" default="/ptu" />
+  <arg name="pan_joint" default="ptu_pan" />
+  <arg name="tilt_joint" default="ptu_tilt" />
+  <arg name="limits" default="$(find flir_ptu_action_server)/config/limits.yaml" />
+
+  <group ns="$(arg act_ns)">
+    <node name="flir_ptu_action_server_node" pkg="flir_ptu_action_server" type="flir_ptu_action_server_node">
+      <param name="cmd_topic" value="$(arg cmd_topic)" />
+      <param name="pan_joint" value="$(arg pan_joint)" />
+      <param name="tilt_joint" value="$(arg tilt_joint)" />
+      <param name="act_ns" value="$(arg act_ns)" />
+
+      <!-- Load PTU limits from a file -->
+      <rosparam command="load" file="$(arg limits)" />
+    </node>
+  </group>
+</launch>

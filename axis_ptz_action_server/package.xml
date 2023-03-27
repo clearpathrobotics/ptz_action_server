@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>axis_ptz_action_server</name>
+  <version>0.0.0</version>
+  <description>PTZ control services for Axix PTZ cameras</description>
+
+  <maintainer email="civerachb@clearpathrobotics.com">Chris Iverach-Brereton</maintainer>
+  <license>BSD</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+
+  <depend>ptz_action_server_msgs</depend>
+  <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+
+  <exec_depend>axis_camera</exec_depend>
+  <exec_depend>message_runtime</exec_depend>
+
+  <export>
+  </export>
+</package>

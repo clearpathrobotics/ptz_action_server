@@ -1,0 +1,290 @@
+#!/usr/bin/env python3
+
+import rospy
+import actionlib
+
+from pelco_d_controls.srv import Ptz as PtzService
+from pelco_d_controls.srv import PtzResponse as PtzServiceResponse
+
+from ptz_action_server_msgs.msg import PtzAction, PtzFeedback, PtzActionGoal, PtzResult
+from ptz_action_server_msgs.msg import PtzPosition
+from sensor_msgs.msg import JointState
+from std_msgs.msg import Float64
+from threading import Thread
+
+from math import pi
+
+def joint_state_callback(data, node):
+    node.joint_state_callback(data)
+
+def zoom_callback(data, node):
+    node.zoom_callback(data)
+
+def clamp_value(x, min, max, metavar='pan'):
+    if x < min:
+        rospy.logwarn('Requested {0}={1} is too small. Clamping to {2}'.format(metavar, x, min))
+        return min
+    elif x > max:
+        rospy.logwarn('Requested {0}={1} is too large. Clamping to {2}'.format(metavar, x, max))
+        return min
+    else:
+        return x
+
+## Do a linear rescale of a number from one range to another
+def linear_rescale(x, old_min, old_max, new_min, new_max):
+    return ((x - old_min) / (old_max - old_min)) * (new_max - new_min) + new_min
+
+
+## Provides a PTZ.action compatible interface for sending pan-tilt positions to the pelco_d_controls driver
+class PelcodPtzControlNode:
+
+    def __init__(self):
+        self.cmd_srv = rospy.get_param('~cmd_srv', '/pelcod/ptz_server')
+        self.position_topic = rospy.get_param('~position_topic', '/pelcod/ptz_joint_state')
+        self.zoom_topic = rospy.get_param('~zoom_topic', '/pelcod/ptz_zoom_state')
+        self.act_ns = rospy.get_param('~act_ns', '/pelcod')
+        self.pan_joint = rospy.get_param('~pan_joint', 'pan')
+        self.tilt_joint = rospy.get_param('~tilt_joint', 'tilt')
+
+        self.MIN_ZOOM = float(rospy.get_param('~min_zoom', 1))
+        self.MAX_ZOOM = float(rospy.get_param('~max_zoom', 24))
+        self.HW_MIN_ZOOM = float(rospy.get_param('~hw_min_zoom', 0))
+        self.HW_MAX_ZOOM = float(rospy.get_param('~hw_max_zoom', 65535))
+        self.MIN_PAN = float(rospy.get_param('~min_pan', -2.356194490192345))
+        self.MAX_PAN = float(rospy.get_param('~max_pan', 2.356194490192345))
+        self.MIN_TILT = float(rospy.get_param('~min_tilt', -0.7853981633974483))
+        self.MAX_TILT = float(rospy.get_param('~max_tilt', 1.5707963267948966))
+
+        self.INVERT_PAN = bool(rospy.get_param('~invert_pan', False))
+        self.INVERT_TILT = bool(rospy.get_param('~invert_tilt', False))
+
+        # wiggle room in case the hardware doesn't go _exactly_ where we command
+        # the tilt seems to have a pretty wide set of error bars and can be off by more than 5 degrees
+        self.position_tolerance = 5.4 * pi / 180.0
+        self.zoom_tolerance = 0.1
+
+        self.goal_pan = 0.0
+        self.goal_tilt = 0.0
+        self.goal_zoom = 1.0
+
+        self.current_pan = 0.0
+        self.current_tilt = 0.0
+        self.current_zoom = 1.0
+
+        self.is_moving = False
+
+        self.ptz_srv = actionlib.SimpleActionServer('{0}/move_ptz'.format(self.act_ns), PtzAction, self.ptz_actionHandler, False)
+
+        self.joint_state_msgs_recvd = 0
+        self.watchdog_thread = Thread(target=self.joint_state_watchdog)
+        self.position_thread = Thread(target=self.publish_position)
+
+
+    ## Starts the subscribers, publishers, and service handlers
+    def start(self):
+        rospy.loginfo("Waiting for {0} to come up...".format(self.cmd_srv))
+        self.cmd_srv = rospy.ServiceProxy(self.cmd_srv, PtzService)
+        self.cmd_srv.wait_for_service()
+        rospy.loginfo("Ready")
+
+        self.joint_state_sub = rospy.Subscriber(self.position_topic, JointState, joint_state_callback, self)
+        self.zoom_sub = rospy.Subscriber(self.zoom_topic, Float64, zoom_callback, self)
+        self.status_pub = rospy.Publisher('{0}/ptz_state'.format(self.act_ns), PtzPosition, queue_size=1)
+        self.ptz_srv.start()
+
+        self.watchdog_thread.start()
+        self.position_thread.start()
+
+
+    ## Handler for the PTZ.action call
+    #  Converts the PTZ request into a JointState we write to the flir_ptu driver
+    #  and then wait until /joint_states reports that the PTU has finished moving
+    #
+    #  \param ptz_req  The PtzActionGoal object to process
+    def ptz_actionHandler(self, ptz_req):
+        ptz_resp = PtzResult()
+
+        # If the previous action is in-progress abort and return immediately
+        if self.is_moving:
+            txt = "Already moving to {0} {1} {2}. Preempting to {3} {4} {5}".format(self.goal_pan, self.goal_tilt, self.goal_zoom, ptz_req.pan, ptz_req.tilt, ptz_req.zoom)
+            rospy.logwarn(txt)
+
+        pan = ptz_req.pan
+        tilt = ptz_req.tilt
+        zoom = ptz_req.zoom
+
+        pan = clamp_value(ptz_req.pan, self.MIN_PAN, self.MAX_PAN, 'pan')
+        tilt = clamp_value(ptz_req.tilt, self.MIN_TILT, self.MAX_TILT, 'tilt')
+        zoom = clamp_value(ptz_req.zoom, self.MIN_ZOOM, self.MAX_ZOOM, 'zoom')
+
+        self.goal_pan = pan
+        self.goal_tilt = tilt
+        self.goal_zoom = zoom
+
+        rospy.loginfo("New request to move to {0} {1} {2}".format(self.goal_pan, self.goal_tilt, self.goal_zoom))
+
+        # translate the requested position to the range the hardware driver expects
+        # zero is in the same place, but the pan must be positive
+        # and we may need to invert one or both directions of travel
+        if self.INVERT_PAN:
+            pan = -pan
+        while pan > 2*pi:
+            pan = pan - 2*pi
+        while pan < 0:
+            pan = pan + 2*pi
+
+        if self.INVERT_TILT:
+            tilt = -tilt
+        while tilt > pi/2:
+            tilt = tilt - 2*pi
+        while tilt < -pi/2:
+            tilt = tilt + 2*pi
+        zoom = linear_rescale(self.goal_zoom, self.MIN_ZOOM, self.MAX_ZOOM, self.HW_MIN_ZOOM, self.HW_MAX_ZOOM)
+
+        self.is_moving = True
+        resp = self.cmd_srv(pan, tilt, zoom)
+
+        if not resp.success:
+            # Pelco-D is heckin' slow, and may reject commands if we send them too quickly
+            txt = "Pelco-D camera rejected request to move to {0} {1} {2}".format(pan, tilt, zoom)
+            rospy.logwarn(txt)
+            ptz_resp.success = False
+            self.ptz_srv.set_aborted(ptz_resp, text=txt)
+
+        else:
+            # sleep until joint_states reports that the pan and tilt joints have reached the desired position OR
+            # have stopped moving
+            rate = rospy.Rate(10)
+            while self.is_moving and not self.ptz_srv.is_preempt_requested() and not rospy.is_shutdown():
+                feedback = PtzFeedback()
+                feedback.zoom_remaining = self.goal_zoom - self.current_zoom
+                feedback.pan_remaining = self.goal_pan - self.current_pan
+                feedback.tilt_remaining = self.goal_tilt - self.current_tilt
+                self.ptz_srv.publish_feedback(feedback)
+                rate.sleep()
+
+            # publish the final feedback message
+            feedback = PtzFeedback()
+            feedback.zoom_remaining = self.goal_zoom - self.current_zoom
+            feedback.pan_remaining = self.goal_pan - self.current_pan
+            feedback.tilt_remaining = self.goal_tilt - self.current_tilt
+            self.ptz_srv.publish_feedback(feedback)
+
+            if rospy.is_shutdown():
+                rospy.loginfo("PTZ action cancelled; shutting down!")
+                self.is_moving = False
+                self.ptz_srv.set_aborted(ptz_resp, text="PTZ action cancelled; shutting down!");
+            elif self.ptz_srv.is_preempt_requested():
+                rospy.loginfo("PTZ action preempted")
+                self.ptz_srv.set_preempted(ptz_resp, text="PTZ action preempted.")
+            else:
+                rospy.loginfo("PTZ action {0} {1} {2} succeeded".format(self.goal_pan, self.goal_tilt, self.goal_zoom))
+                ptz_resp.success = True
+                self.ptz_srv.set_succeeded(ptz_resp)
+
+
+    ## Monitors /joint_states to determine if the pan and tilt joints have reached their goal positions yet
+    #
+    # \param data  The JointState information received on /joint_states
+    def joint_state_callback(self, data):
+        try:
+            pan_index = data.name.index(self.pan_joint)
+            tilt_index = data.name.index(self.tilt_joint)
+
+            pan = data.position[pan_index]
+            tilt = data.position[tilt_index]
+
+            # translate the pan and tilt to the action server ranges
+            if self.INVERT_PAN:
+                pan = -pan
+            while pan > self.MAX_PAN:
+                pan = pan - 2*pi
+            while pan < self.MIN_PAN:
+                pan = pan + 2*pi
+
+            if self.INVERT_TILT:
+                tilt = -tilt
+            while tilt > self.MAX_TILT:
+                tilt = tilt - 2*pi
+            while tilt < self.MIN_TILT:
+                tilt = tilt + 2*pi
+
+            self.current_pan = pan
+            self.current_tilt = tilt
+
+            # publish the current PTZ state
+            state = PtzPosition()
+            state.pan = pan
+            state.tilt = tilt
+
+            self.check_if_done_moving()
+
+            # this was a valid message!
+            self.joint_state_msgs_recvd = self.joint_state_msgs_recvd + 1
+
+        except ValueError as err:
+            # the pan and tilt joints are not in the message. this is normal.
+            pass
+        except Exception as err:
+            rospy.logerror(err)
+
+    ## Monitors zoom to determine of the camera has reached the desired zoom level yet
+    #
+    #  \param data  The camera's current zoom level as a Float32
+    def zoom_callback(self, data):
+        zoom = data.data
+        zoom = linear_rescale(zoom, self.HW_MIN_ZOOM, self.HW_MAX_ZOOM, self.MIN_ZOOM, self.MAX_ZOOM)
+        self.current_zoom = zoom
+        self.check_if_done_moving()
+
+    ## Checks the current pan + tilt + zoom positions to determine if the camera has finished moving
+    def check_if_done_moving(self):
+        # special case: pan can be 0-360 degrees.
+        # a goal pan and valid position could wrap around either end of this extreme
+        # therefore check goal_pan + 360 and goal_pan - 360 in addition to goal_pan itself
+
+        if self.is_moving and \
+                ( abs(self.goal_pan - self.current_pan) < self.position_tolerance or \
+                  abs((self.goal_pan - 2*pi) - self.current_pan) < self.position_tolerance or \
+                  abs((self.goal_pan + 2*pi) - self.current_pan) < self.position_tolerance \
+                ) and \
+                abs(self.goal_tilt - self.current_tilt) < self.position_tolerance and \
+                abs(self.goal_zoom - self.current_zoom) < self.zoom_tolerance:
+            self.is_moving = False
+
+    ## Monitors the joint state subscription and warns if the frequency is too low
+    def joint_state_watchdog(self):
+        rate = rospy.Rate(0.2)
+        while not rospy.is_shutdown():
+            rate.sleep()
+            if self.joint_state_msgs_recvd == 0:
+                rospy.logwarn("No joint state messages received from Pelco-D driver; PTZ may be unresponsive")
+
+            self.joint_state_msgs_recvd = 0
+
+    ## Publish the current position at 10Hz
+    def publish_position(self):
+        rate = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            rate.sleep()
+
+            if self.current_pan < self.MIN_PAN or self.current_pan > self.MAX_PAN:
+                rospy.logwarn(f"Current pan is out of range! {self.MIN_PAN} <? {self.current_pan} <? {self.MAX_PAN}")
+
+            if self.current_tilt < self.MIN_TILT or self.current_tilt > self.MAX_TILT:
+                rospy.logwarn(f"Current tilt is out of range! {self.MIN_TILT} <? {self.current_tilt} <? {self.MAX_TILT}")
+
+            msg = PtzPosition()
+            msg.pan = self.current_pan
+            msg.tilt = self.current_tilt
+            msg.zoom = self.current_zoom
+            self.status_pub.publish(msg)
+
+def main():
+    rospy.init_node('pelcod_ptz_action_server_node', anonymous=True)
+    node = PelcodPtzControlNode()
+    node.start()
+    rospy.spin()
+
+if __name__=='__main__':
+    main()
