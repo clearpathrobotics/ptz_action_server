@@ -2,8 +2,8 @@
 Changelog for package axis_ptz_action_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.1.1 (2023-04-11)
+------------------
 * Add limits files for the standard dome camera & Q62 series. Add a new launch argument to specify the limits file
 * Contributors: Chris Iverach-Brereton
 
