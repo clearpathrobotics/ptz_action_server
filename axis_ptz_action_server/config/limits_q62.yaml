@@ -1,0 +1,12 @@
+# -179 to 179
+min_pan: -3.12413936106985
+max_pan: 3.12413936106985
+# -90 to 90
+min_tilt: -1.5707963267948966
+max_tilt: 1.5707963267948966
+# HW zoom is 1-9999
+min_zoom: 1
+max_zoom: 9999
+# Logcal zoom expressed as 1-100%
+min_logical_zoom: 1
+max_logical_zoom: 100

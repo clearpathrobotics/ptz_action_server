@@ -17,16 +17,6 @@ def state_callback(data, node):
 def linear_rescale(x, old_min, old_max, new_min, new_max):
     return (x-old_min) / (old_max - old_min) * (new_max - new_min) + new_min
 
-# maximum range of motion of the Axis PTZ dome cameras
-MAX_TILT = deg2rad(90)
-MIN_TILT = deg2rad(0)
-MIN_PAN = deg2rad(-170)
-MAX_PAN = deg2rad(170)
-HW_MIN_ZOOM = 1.0
-HW_MAX_ZOOM = 9999.0
-MIN_ZOOM = 1.0
-MAX_ZOOM = 24.0
-
 def clamp(x, min, max, metavar):
     if x < min:
         rospy.logwarn('Requested {0}={1} is too small. Clamping to {2}'.format(metavar,x, min))
@@ -45,6 +35,16 @@ class AxisPtzControlNode:
         self.act_ns = rospy.get_param('~act_ns', '/axis')
         self.invert_tilt = rospy.get_param('~invert_tilt', False)
         self.invert_pan = rospy.get_param('~invert_pan', False)
+
+        self.min_pan = rospy.get_param("~min_pan", deg2rad(-170))
+        self.max_pan = rospy.get_param("~max_pan", deg2rad(170))
+        self.min_tilt = rospy.get_param("~min_tilt", 0)
+        self.max_tilt = rospy.get_param("~max_tilt", deg2rad(90))
+        self.min_hw_zoom = rospy.get_param("~min_zoom", 1)
+        self.max_hw_zoom = rospy.get_param("~max_zoom", 9999)
+
+        self.min_logical_zoom = rospy.get_param("~min_logical_zoom", 1)
+        self.max_logical_zoom = rospy.get_param("~max_logical_zoom", 24)
 
         # allow 1 degree of error when tracking the position feedback
         # this is a little coarse, but the camera isn't a high-precision piece of kit anyway
@@ -87,7 +87,7 @@ class AxisPtzControlNode:
 
         pan = deg2rad(data.pan)
         tilt = deg2rad(data.tilt)
-        zoom = linear_rescale(data.zoom, HW_MIN_ZOOM, HW_MAX_ZOOM, MIN_ZOOM, MAX_ZOOM)
+        zoom = linear_rescale(data.zoom, self.min_hw_zoom, self.max_hw_zoom, self.min_logical_zoom, self.max_logical_zoom)
 
         # by default the underlying Axis driver uses + as right, but we use
         # + as left
@@ -127,9 +127,9 @@ class AxisPtzControlNode:
             self.ptz_srv.set_aborted(ptz_resp, 'Still waiting for initial state from the camera. Cannot move yet')
 
         else:
-            self.goal_pan = clamp(ptz_req.pan, MIN_PAN, MAX_PAN, 'pan')
-            self.goal_tilt = clamp(ptz_req.tilt, MIN_TILT, MAX_TILT, 'tilt')
-            self.goal_zoom = clamp(ptz_req.zoom, MIN_ZOOM, MAX_ZOOM, 'zoom')
+            self.goal_pan = clamp(ptz_req.pan, self.min_pan, self.max_pan, 'pan')
+            self.goal_tilt = clamp(ptz_req.tilt, self.min_tilt, self.max_tilt, 'tilt')
+            self.goal_zoom = clamp(ptz_req.zoom, self.min_logical_zoom, self.max_logical_zoom, 'zoom')
 
             cmd = self.ptz_to_axis()
 
@@ -166,7 +166,7 @@ class AxisPtzControlNode:
 
         pan = rad2deg(self.goal_pan)
         tilt = rad2deg(self.goal_tilt)
-        zoom = linear_rescale(self.goal_zoom, MIN_ZOOM, MAX_ZOOM, HW_MIN_ZOOM, HW_MAX_ZOOM)
+        zoom = linear_rescale(self.goal_zoom, self.min_logical_zoom, self.max_logical_zoom, self.min_hw_zoom, self.max_hw_zoom)
 
         # by default the underlying Axis driver uses + as right, but we use
         # + as left
