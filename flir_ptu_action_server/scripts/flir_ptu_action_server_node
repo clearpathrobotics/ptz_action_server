@@ -14,10 +14,10 @@ def joint_state_callback(data, node):
 
 def clamp_value(x, min, max, metavar='pan'):
     if x < min:
-        rospy.logwarn('Requested {0}={1} is too small. Clamping to {2}'.format(metavar, x, min))
+        rospy.logwarn(f'Requested {metavar}={x} is too small. Clamping to {min}')
         return min
     elif x > max:
-        rospy.logwarn('Requested {0}={1} is too large. Clamping to {2}'.format(metavar, x, max))
+        rospy.logwarn(f'Requested {metavar}={x} is too large. Clamping to {max}')
         return max
     else:
         return x
@@ -54,14 +54,14 @@ class FlirD46PtzControlNode:
 
         self.is_moving = False
 
-        self.ptz_srv = actionlib.SimpleActionServer('{0}/move_ptz'.format(self.act_ns), PtzAction, self.ptz_actionHandler, False)
+        self.ptz_srv = actionlib.SimpleActionServer(f'{self.act_ns}/move_ptz', PtzAction, self.ptz_actionHandler, False)
 
 
     ## Starts the subscribers, publishers, and service handlers
     def start(self):
         self.cmd_pub = rospy.Publisher(self.cmd_topic, JointState, queue_size=1)
         self.joint_state_sub = rospy.Subscriber('/joint_states', JointState, joint_state_callback, self)
-        self.status_pub = rospy.Publisher('{0}/ptz_state'.format(self.act_ns), PtzPosition, queue_size=1)
+        self.status_pub = rospy.Publisher(f'{self.act_ns}/ptz_state', PtzPosition, queue_size=1)
         self.ptz_srv.start()
 
 
