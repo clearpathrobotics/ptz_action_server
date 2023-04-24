@@ -69,6 +69,8 @@ class AxisPtzControlNode:
 
         self.ptz_srv = actionlib.SimpleActionServer(f'{self.act_ns}/move_ptz', PtzAction, self.ptz_actionHandler, False)
 
+        self.last_state_at = rospy.Time.now()
+
 
     ## Starts the subscribers, publishers, and service handlers
     def start(self):
@@ -84,6 +86,8 @@ class AxisPtzControlNode:
     # \param data  The Axis.msg information received on the topic
     def state_callback(self, data):
         self.last_axis_state = data
+
+        self.last_state_at = rospy.Time.now()
 
         pan = deg2rad(data.pan)
         tilt = deg2rad(data.tilt)
@@ -139,18 +143,28 @@ class AxisPtzControlNode:
             # sleep until joint_states reports that the pan and tilt joints have reached the desired position OR
             # have stopped moving
             rate = rospy.Rate(10)
-            while self.is_moving and not self.ptz_srv.is_preempt_requested():
+            timed_out = False
+            while self.is_moving and not self.ptz_srv.is_preempt_requested() and not timed_out:
                 feedback = PtzFeedback()
                 feedback.zoom_remaining = self.goal_zoom - self.ptz_state.zoom
                 feedback.pan_remaining = self.goal_pan - deg2rad(self.ptz_state.pan)
                 feedback.tilt_remaining = self.goal_tilt - deg2rad(self.ptz_state.tilt)
                 self.ptz_srv.publish_feedback(feedback)
-                rate.sleep()
+
+                if rospy.Time.now() - self.last_state_at > rospy.Duration(10):
+                    timed_out = True
+                else:
+                    rate.sleep()
 
             if self.ptz_srv.is_preempt_requested():
                 rospy.logwarn("PTZ action cancelled")
                 self.is_moving = False
                 self.ptz_srv.set_preempted()
+            elif timed_out:
+                rospy.logwarn("Timed out waiting for axis camera state")
+                self.is_moving = False
+                self.ptz_srv.success = False
+                self.ptz_srv.set_aborted(ptz_resp, "Timed out waiting for axis camera state; did the camera go offline?")
             else:
                 ptz_resp = PtzResult()
                 ptz_resp.success = True
