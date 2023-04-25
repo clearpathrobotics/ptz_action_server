@@ -29,6 +29,9 @@ def clamp(x, min, max, metavar):
 
 ## Provides a PTZ.action compatible interface for sending pan-tilt-zoom positions to the axis_camera driver
 class AxisPtzControlNode:
+    ## How long before we consider the Axis.msg sent on the status topic to be stale?
+    STATE_TIMEOUT = rospy.Duration(10)
+
     def __init__(self):
         self.cmd_topic = rospy.get_param('~cmd_topic', '/axis/cmd')
         self.status_topic = rospy.get_param('~status_topic', '/axis/state')
@@ -125,12 +128,21 @@ class AxisPtzControlNode:
     #  \param ptz_req  The PtzGoal object to process
     def ptz_actionHandler(self, ptz_req):
         if self.last_axis_state == None:
+            # We have never contacted the camera; block until we hear _something_
             rospy.logwarn('Still waiting for initial state from the camera. Cannot move yet')
             ptz_resp = PtzResult()
             ptz_resp.success = False
             self.ptz_srv.set_aborted(ptz_resp, 'Still waiting for initial state from the camera. Cannot move yet')
 
+        elif rospy.Time.now() - self.last_state_at > self.STATE_TIMEOUT:
+            # We haven't heard from the camera in a while; block until the camera updates its status again
+            rospy.logwarn("Status of Axis camera is stale. Waiting for the camera to come back online")
+            ptz_resp = PtzResult()
+            ptz_resp.success = False
+            self.ptz_srv.set_aborted(ptz_resp, "Status of Axis camera is stale; waiting for camera to publish its state again")
+
         else:
+            # The camera is alive and ready to move
             self.goal_pan = clamp(ptz_req.pan, self.min_pan, self.max_pan, 'pan')
             self.goal_tilt = clamp(ptz_req.tilt, self.min_tilt, self.max_tilt, 'tilt')
             self.goal_zoom = clamp(ptz_req.zoom, self.min_logical_zoom, self.max_logical_zoom, 'zoom')
@@ -142,7 +154,7 @@ class AxisPtzControlNode:
 
             # sleep until joint_states reports that the pan and tilt joints have reached the desired position OR
             # have stopped moving
-            rate = rospy.Rate(10)
+            rate = rospy.Rate(2)
             timed_out = False
             while self.is_moving and not self.ptz_srv.is_preempt_requested() and not timed_out:
                 feedback = PtzFeedback()
@@ -151,13 +163,14 @@ class AxisPtzControlNode:
                 feedback.tilt_remaining = self.goal_tilt - deg2rad(self.ptz_state.tilt)
                 self.ptz_srv.publish_feedback(feedback)
 
-                if rospy.Time.now() - self.last_state_at > rospy.Duration(10):
+                if rospy.Time.now() - self.last_state_at > self.STATE_TIMEOUT:
                     timed_out = True
                 else:
+                    rospy.logdebug(f"PTZ is still moving ({feedback.pan_remaining}, {feedback.tilt_remaining}, {feedback.zoom_remaining}) to go")
                     rate.sleep()
 
             if self.ptz_srv.is_preempt_requested():
-                rospy.logwarn("PTZ action cancelled")
+                rospy.logwarn("PTZ action preempted")
                 self.is_moving = False
                 self.ptz_srv.set_preempted()
             elif timed_out:
@@ -166,6 +179,7 @@ class AxisPtzControlNode:
                 self.ptz_srv.success = False
                 self.ptz_srv.set_aborted(ptz_resp, "Timed out waiting for axis camera state; did the camera go offline?")
             else:
+                rospy.logdebug("PTZ action completed successfully")
                 ptz_resp = PtzResult()
                 ptz_resp.success = True
                 self.ptz_srv.set_succeeded(ptz_resp)
