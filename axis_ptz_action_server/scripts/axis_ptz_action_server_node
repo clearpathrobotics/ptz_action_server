@@ -74,6 +74,8 @@ class AxisPtzControlNode:
 
         self.last_state_at = rospy.Time.now()
 
+        self.last_command_at = rospy.Time.now()
+
 
     ## Starts the subscribers, publishers, and service handlers
     def start(self):
@@ -88,10 +90,6 @@ class AxisPtzControlNode:
     #
     # \param data  The Axis.msg information received on the topic
     def state_callback(self, data):
-        self.last_axis_state = data
-
-        self.last_state_at = rospy.Time.now()
-
         pan = deg2rad(data.pan)
         tilt = deg2rad(data.tilt)
         zoom = linear_rescale(data.zoom, self.min_hw_zoom, self.max_hw_zoom, self.min_logical_zoom, self.max_logical_zoom)
@@ -110,9 +108,21 @@ class AxisPtzControlNode:
         dzoom = abs(zoom - self.goal_zoom)
 
         if self.is_moving:
+            # check if we've reached the goal
             if dpan <= self.position_tolerance and dtilt <= self.position_tolerance and dzoom <= self.zoom_tolerance:
                 rospy.loginfo("PTZ reached goal!")
                 self.is_moving = False
+            elif self.last_axis_state.pan == data.pan and \
+                 self.last_axis_state.tilt == data.tilt and \
+                 self.last_axis_state.zoom == data.zoom and \
+                 (rospy.Time.now() - self.last_command_at) > rospy.Duration(5):
+                # check that we're actually moving towards the goal
+                # if we aren't, re-send the command
+                rospy.logwarn("Axis camera doesn't appear to be moving; re-sending last command")
+                self.command_axis()
+
+        self.last_axis_state = data
+        self.last_state_at = rospy.Time.now()
 
         # publish the current PTZ state
         self.ptz_state.pan = pan
@@ -147,10 +157,9 @@ class AxisPtzControlNode:
             self.goal_tilt = clamp(ptz_req.tilt, self.min_tilt, self.max_tilt, 'tilt')
             self.goal_zoom = clamp(ptz_req.zoom, self.min_logical_zoom, self.max_logical_zoom, 'zoom')
 
-            cmd = self.ptz_to_axis()
-
+            # send the command to the camera
             self.is_moving = True
-            self.cmd_pub.publish(cmd)
+            self.command_axis()
 
             # sleep until joint_states reports that the pan and tilt joints have reached the desired position OR
             # have stopped moving
@@ -183,6 +192,13 @@ class AxisPtzControlNode:
                 ptz_resp = PtzResult()
                 ptz_resp.success = True
                 self.ptz_srv.set_succeeded(ptz_resp)
+
+
+    ## Create the Axis.msg and send it to the camera hardware
+    def command_axis(self):
+        cmd = self.ptz_to_axis()
+        self.cmd_pub.publish(cmd)
+        self.last_command_at = rospy.Time.now()
 
 
     ## Convert the PtzResult to an Axis message we can write back to the driver
