@@ -2,8 +2,8 @@
 Changelog for package axis_ptz_action_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.1.2 (2023-05-05)
+------------------
 * Re-send the axis command if the camera isn't moving after 5s
 * Add some additional logging, handle camera disconnections better
 * Abort the action in-progress if the Axis camera stops publishing state messages

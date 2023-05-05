@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>axis_ptz_action_server</name>
-  <version>0.1.1</version>
+  <version>0.1.2</version>
   <description>PTZ control services for Axix PTZ cameras</description>
 
   <maintainer email="civerachb@clearpathrobotics.com">Chris Iverach-Brereton</maintainer>
