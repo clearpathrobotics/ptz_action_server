@@ -105,7 +105,9 @@ class SimulatedPtzCameraNode:
         rate = rospy.Rate(10)
         is_moving = True
         is_zooming = True
-        while (is_moving or is_zooming) and not rospy.is_shutdown():
+        fback = PtzFeedback()
+        is_error = False
+        while (is_moving or is_zooming) and not rospy.is_shutdown() and not is_error:
             rate.sleep()
 
             # adjust the zoom
@@ -124,23 +126,33 @@ class SimulatedPtzCameraNode:
                             abs((goal_pan + 2*math.pi) - self.current_pan) )
             tilt_to_go = abs(goal_tilt - self.current_tilt)
 
+            # check if we've reached the goal
             if pan_to_go <= self.ANGLE_TOLERANCE and tilt_to_go <= self.ANGLE_TOLERANCE:
                 is_moving = False
 
-            fback = PtzFeedback()
+            # check if we've stopped moving; this may indicate an error with the controller
+            if fback.pan_remaining == pan_to_go and fback.tilt_remaining == tilt_to_go and fback.zoom_remaining == zoom_to_go:
+                rospy.logwarn("Camera seems to have stopped moving; aborting PTZ action")
+                is_error = True
+                is_moving = False
+
             fback.pan_remaining = pan_to_go
             fback.tilt_remaining = tilt_to_go
             fback.zoom_remaining = zoom_to_go
             self.ptz_srv.publish_feedback(fback)
 
-        if not rospy.is_shutdown():
+        if rospy.is_shutdown():
+            rospy.loginfo("Node shutting down")
+        elif is_error:
+            rospy.logwarn("PTZ action failed")
+            ptz_resp = PtzResult()
+            ptz_resp.success = False
+            self.ptz_srv.set_succeeded(ptz_resp)
+        else:
             rospy.loginfo("PTZ simulator reached goal position")
             ptz_resp = PtzResult()
             ptz_resp.success = True
             self.ptz_srv.set_succeeded(ptz_resp)
-        else:
-            rospy.loginfo("Node shutting down")
-
 
     ## Read the current joint_states and update the camera's current position
     def joint_state_callback(self, data):
