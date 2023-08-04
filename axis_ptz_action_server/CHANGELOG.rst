@@ -2,6 +2,9 @@
 Changelog for package axis_ptz_action_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 0.1.2 (2023-05-05)
 ------------------
 * Re-send the axis command if the camera isn't moving after 5s
