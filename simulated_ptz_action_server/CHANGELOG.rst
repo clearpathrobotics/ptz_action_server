@@ -2,8 +2,8 @@
 Changelog for package ptz_action_server_msgs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.1.3 (2023-08-04)
+------------------
 * Add the simulated PTZ action server package for Gazebo support
 * Contributors: Chris Iverach-Brereton
 
