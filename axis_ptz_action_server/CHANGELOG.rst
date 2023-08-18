@@ -2,8 +2,8 @@
 Changelog for package axis_ptz_action_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.1.4 (2023-08-18)
+------------------
 * Add the ability to publish the Axis camera's joint states
 * Contributors: Chris Iverach-Brereton
 
