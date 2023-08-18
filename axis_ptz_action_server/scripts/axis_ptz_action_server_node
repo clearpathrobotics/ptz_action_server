@@ -7,6 +7,7 @@ from axis_camera.msg import Axis
 from ptz_action_server_msgs.msg import PtzAction, PtzFeedback, PtzActionGoal, PtzResult
 from ptz_action_server_msgs.msg import PtzPosition
 from sensor_msgs.msg import JointState
+from threading import Thread
 
 from math import pi
 from math import degrees as rad2deg
@@ -90,6 +91,8 @@ class AxisPtzControlNode:
 
         if self.publish_joint_states:
             self.joint_state_pub = rospy.Publisher("/joint_states", JointState, queue_size=1)
+            self.js_thread = Thread(target=self.joint_state_pub_thread)
+            self.js_thread.start()
 
         self.ptz_srv.start()
 
@@ -139,14 +142,18 @@ class AxisPtzControlNode:
         self.ptz_state.zoom = zoom
         self.status_pub.publish(self.ptz_state)
 
-        if self.publish_joint_states:
-            js = JointState()
+    def joint_state_pub_thread(self):
+        js = JointState()
+
+        rate = rospy.Rate(10)
+        while not rospy.is_shutdown():
             js.header.stamp = rospy.Time.now()
             js.name = [self.pan_joint, self.tilt_joint]
-            js.position = [pan, tilt]
+            js.position = [self.ptz_state.pan, self.ptz_state.tilt]
             js.velocity = [0, 0]
             js.effort = [0, 0]
             self.joint_state_pub.publish(js)
+            rate.sleep()
 
 
     ## Handles PTZ.action requests
