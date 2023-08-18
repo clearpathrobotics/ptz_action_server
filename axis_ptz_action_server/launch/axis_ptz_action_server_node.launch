@@ -4,12 +4,18 @@
   <arg name="status_topic" default="/axis/state" />
   <arg name="act_ns" default="/axis" />
   <arg name="limits_config" default="$(find axis_ptz_action_server)/config/limits_dome.yaml" />
+  <arg name="camera_name" default="ptz_camera" />
+  <arg name="publish_joint_states" default="true" />
 
   <group ns="$(arg act_ns)">
     <node name="axis_ptz_action_server_node" pkg="axis_ptz_action_server" type="axis_ptz_action_server_node">
       <param name="cmd_topic" value="$(arg cmd_topic)" />
       <param name="status_topic" value="$(arg status_topic)" />
       <param name="act_ns" value="$(arg act_ns)" />
+
+      <param name="publish_joint_states" value="$(arg publish_joint_states)" />
+      <param name="pan_joint" value="$(arg camera_name)_pan_joint" />
+      <param name="tilt_joint" value="$(arg camera_name)_tilt_joint" />
       <rosparam command="load" file="$(arg limits_config)" subst_value="true" />
     </node>
   </group>

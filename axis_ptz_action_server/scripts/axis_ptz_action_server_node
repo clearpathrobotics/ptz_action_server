@@ -6,6 +6,8 @@ import actionlib
 from axis_camera.msg import Axis
 from ptz_action_server_msgs.msg import PtzAction, PtzFeedback, PtzActionGoal, PtzResult
 from ptz_action_server_msgs.msg import PtzPosition
+from sensor_msgs.msg import JointState
+from threading import Thread
 
 from math import pi
 from math import degrees as rad2deg
@@ -46,6 +48,10 @@ class AxisPtzControlNode:
         self.min_hw_zoom = rospy.get_param("~min_zoom", 1)
         self.max_hw_zoom = rospy.get_param("~max_zoom", 9999)
 
+        self.publish_joint_states = rospy.get_param("~publish_joint_states", True)
+        self.pan_joint = rospy.get_param("~pan_joint", "pan_joint")
+        self.tilt_joint = rospy.get_param("~tilt_joint", "tilt_joint")
+
         self.min_logical_zoom = rospy.get_param("~min_logical_zoom", 1)
         self.max_logical_zoom = rospy.get_param("~max_logical_zoom", 24)
 
@@ -82,6 +88,12 @@ class AxisPtzControlNode:
         self.cmd_pub = rospy.Publisher(self.cmd_topic, Axis, queue_size=1)
         self.status_sub = rospy.Subscriber(self.status_topic, Axis, state_callback, self)
         self.status_pub = rospy.Publisher(f'{self.act_ns}/ptz_state', PtzPosition, queue_size=1)
+
+        if self.publish_joint_states:
+            self.joint_state_pub = rospy.Publisher("/joint_states", JointState, queue_size=1)
+            self.js_thread = Thread(target=self.joint_state_pub_thread)
+            self.js_thread.start()
+
         self.ptz_srv.start()
 
 
@@ -129,6 +141,19 @@ class AxisPtzControlNode:
         self.ptz_state.tilt = tilt
         self.ptz_state.zoom = zoom
         self.status_pub.publish(self.ptz_state)
+
+    def joint_state_pub_thread(self):
+        js = JointState()
+
+        rate = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            js.header.stamp = rospy.Time.now()
+            js.name = [self.pan_joint, self.tilt_joint]
+            js.position = [self.ptz_state.pan, self.ptz_state.tilt]
+            js.velocity = [0, 0]
+            js.effort = [0, 0]
+            self.joint_state_pub.publish(js)
+            rate.sleep()
 
 
     ## Handles PTZ.action requests
