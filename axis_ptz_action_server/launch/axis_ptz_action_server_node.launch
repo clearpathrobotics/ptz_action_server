@@ -3,7 +3,7 @@
   <arg name="cmd_topic" default="/axis/cmd" />
   <arg name="status_topic" default="/axis/state" />
   <arg name="act_ns" default="/axis" />
-  <arg name="limits_config" default="$(find axis_ptz_action_server)/config/limits_dome.yaml" />
+  <arg name="limits_config" default="$(find axis_ptz_action_server)/config/limits.yaml" />
   <arg name="camera_name" default="ptz_camera" />
   <arg name="publish_joint_states" default="true" />
 
