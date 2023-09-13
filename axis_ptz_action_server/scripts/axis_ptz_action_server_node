@@ -197,8 +197,8 @@ class AxisPtzControlNode:
             self.goal_zoom = clamp(ptz_req.zoom, self.min_logical_zoom, self.max_logical_zoom, 'zoom')
 
             # send the command to the camera
-            self.set_is_moving(True)
             self.command_axis()
+            self.set_is_moving(True)
 
             # sleep until joint_states reports that the pan and tilt joints have reached the desired position OR
             # have stopped moving
