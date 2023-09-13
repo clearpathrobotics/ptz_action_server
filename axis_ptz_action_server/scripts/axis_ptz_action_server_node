@@ -193,8 +193,8 @@ class AxisPtzControlNode:
             while self.is_moving and not self.ptz_srv.is_preempt_requested() and not timed_out:
                 feedback = PtzFeedback()
                 feedback.zoom_remaining = self.goal_zoom - self.ptz_state.zoom
-                feedback.pan_remaining = self.goal_pan - deg2rad(self.ptz_state.pan)
-                feedback.tilt_remaining = self.goal_tilt - deg2rad(self.ptz_state.tilt)
+                feedback.pan_remaining = self.goal_pan - self.ptz_state.pan
+                feedback.tilt_remaining = self.goal_tilt - self.ptz_state.tilt
                 self.ptz_srv.publish_feedback(feedback)
 
                 if rospy.Time.now() - self.last_state_at > self.STATE_TIMEOUT:
