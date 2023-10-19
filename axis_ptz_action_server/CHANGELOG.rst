@@ -2,6 +2,19 @@
 Changelog for package axis_ptz_action_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Merge pull request `#3 <https://github.com/clearpathrobotics/ptz_action_server/issues/3>`_ from clearpathrobotics/ONAV-1687
+  rename file and add environment variables to set ptz limits
+* fix endline
+* restore limits_dome.yaml file as an example.
+* Set the is_moving flag _after\_ we send the command to the camera hardware, just to prevent possible issues with feedback kicking out early
+* Add an additional check to make sure the camera hasn't stopped moving. Make setting self.is_moving atomic with a setter function and a lock
+* Add a new config file for dome cameras mounted upside-down
+* `self.ptz_state.pan` and `.tilt` are already in radians; don't covnert them again
+* rename file and add environment variables to set ptz limits
+* Contributors: Chris Iverach-Brereton, José Mastrangelo, jmastrangelo-cpr
+
 0.1.4 (2023-08-18)
 ------------------
 * Add the ability to publish the Axis camera's joint states

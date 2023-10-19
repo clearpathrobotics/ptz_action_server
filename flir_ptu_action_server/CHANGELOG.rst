@@ -2,6 +2,11 @@
 Changelog for package flir_ptu_action_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Remove the catkin ignore file
+* Contributors: Chris Iverach-Brereton
+
 0.1.1 (2023-04-11)
 ------------------
 
