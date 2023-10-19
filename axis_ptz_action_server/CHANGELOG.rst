@@ -2,8 +2,8 @@
 Changelog for package axis_ptz_action_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.1.5 (2023-10-19)
+------------------
 * Fix endline
 * Restore limits_dome.yaml file as an example.
 * Set the is_moving flag _after\_ we send the command to the camera hardware, just to prevent possible issues with feedback kicking out early

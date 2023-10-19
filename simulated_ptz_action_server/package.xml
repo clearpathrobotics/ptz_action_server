@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>simulated_ptz_action_server</name>
-  <version>0.1.4</version>
+  <version>0.1.5</version>
   <description>Controller node for a simulated PTZ camera</description>
 
   <maintainer email="civerachb@clearpathrobotics.com">Chris Iverach-Brereton</maintainer>
