@@ -45,12 +45,19 @@ float32 zoom_remaining
 
 The current state of the camera is reported using the following message format:
 ```
-# PtzPosition.msg
+# PtzState.msg
+int8 MODE_IDLE=0
+int8 MODE_POSITION=1
+int8 MODE_VELOCITY=2
+
+int8 mode
+
 float32 pan
 float32 tilt
 float32 zoom
-
 ```
+
+Regardless of the operating mode, the `pan`, `tilt`, and `zoom` fields report the current positions of the camera.
 
 
 Supported Implementations

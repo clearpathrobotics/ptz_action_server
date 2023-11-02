@@ -14,7 +14,7 @@ add_action_files(
 
 add_message_files(
   FILES
-  PtzPosition.msg
+  PtzState.msg
 )
 
 generate_messages(

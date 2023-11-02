@@ -5,7 +5,7 @@ import math
 import rospy
 
 from ptz_action_server_msgs.msg import PtzAction, PtzFeedback, PtzActionGoal, PtzResult
-from ptz_action_server_msgs.msg import PtzPosition
+from ptz_action_server_msgs.msg import PtzState
 from sensor_msgs.msg import Image, JointState
 from std_msgs.msg import Float64
 
@@ -42,21 +42,26 @@ class SimulatedPtzCameraNode:
         self.position_sub = rospy.Subscriber('/joint_states', JointState, self.joint_state_callback)
         self.img_sub = rospy.Subscriber('image_raw_nozoom', Image, self.image_callback)
         self.img_pub = rospy.Publisher('image_raw', Image, queue_size=1)
-        self.state_pub = rospy.Publisher('ptz_state', PtzPosition, queue_size=1)
+        self.state_pub = rospy.Publisher('ptz_state', PtzState, queue_size=1)
 
         self.pan_cmd = rospy.Publisher('/pan_position_controller/command', Float64, queue_size=1)
         self.tilt_cmd = rospy.Publisher('/tilt_position_controller/command', Float64, queue_size=1)
 
-        self.ptz_srv = actionlib.SimpleActionServer('move_ptz', PtzAction, self.ptz_actionHandler, False)
+        self.ptz_srv = actionlib.SimpleActionServer('position', PtzAction, self.ptz_actionHandler, False)
         self.ptz_srv.start()
 
         # spin and publish the ptz status at 10Hz
         rate = rospy.Rate(10)
         while not rospy.is_shutdown():
-            psn = PtzPosition()
+            psn = PtzState()
             psn.pan = self.current_pan
             psn.tilt = self.current_tilt
             psn.zoom = self.current_zoom
+            if self.is_moving or self.is_zooming:
+                psn.mode = PtzState.MODE_POSITION
+            else:
+                psn.mode = PtzState.MODE_IDLE
+
             self.state_pub.publish(psn)
 
             rate.sleep()

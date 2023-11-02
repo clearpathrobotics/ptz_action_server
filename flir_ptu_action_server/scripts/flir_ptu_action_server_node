@@ -4,7 +4,7 @@ import rospy
 import actionlib
 
 from ptz_action_server_msgs.msg import PtzAction, PtzFeedback, PtzActionGoal, PtzResult
-from ptz_action_server_msgs.msg import PtzPosition
+from ptz_action_server_msgs.msg import PtzState
 from sensor_msgs.msg import JointState
 
 from math import pi
@@ -54,14 +54,14 @@ class FlirD46PtzControlNode:
 
         self.is_moving = False
 
-        self.ptz_srv = actionlib.SimpleActionServer(f'{self.act_ns}/move_ptz', PtzAction, self.ptz_actionHandler, False)
+        self.ptz_srv = actionlib.SimpleActionServer(f'{self.act_ns}/position', PtzAction, self.ptz_actionHandler, False)
 
 
     ## Starts the subscribers, publishers, and service handlers
     def start(self):
         self.cmd_pub = rospy.Publisher(self.cmd_topic, JointState, queue_size=1)
         self.joint_state_sub = rospy.Subscriber('/joint_states', JointState, joint_state_callback, self)
-        self.status_pub = rospy.Publisher(f'{self.act_ns}/ptz_state', PtzPosition, queue_size=1)
+        self.status_pub = rospy.Publisher(f'{self.act_ns}/ptz_state', PtzState, queue_size=1)
         self.ptz_srv.start()
 
 
@@ -153,10 +153,14 @@ class FlirD46PtzControlNode:
             self.current_tilt = tilt
 
             # publish the current PTZ state
-            state = PtzPosition()
+            state = PtzState()
             state.pan = pan
             state.tilt = tilt
             state.zoom = 0
+            if self.is_moving:
+                state.mode = PtzState.MODE_POSITION
+            else:
+                state.mode = PtzState.MODE_IDLE
             self.status_pub.publish(state)
 
             if self.is_moving and (\
