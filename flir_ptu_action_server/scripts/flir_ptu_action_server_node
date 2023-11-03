@@ -22,8 +22,10 @@ def clamp_value(x, min, max, metavar='pan'):
     else:
         return x
 
-## Provides a PTZ.action compatible interface for sending pan-tilt positions to the flir_ptu driver
 class FlirD46PtzControlNode:
+    """Provides a PTZ.action compatible interface for sending pan-tilt positions to the flir_ptu driver
+    """
+
     HW_MIN_PAN = -2.775073510670984
     HW_MAX_PAN = 2.775073510670984
 
@@ -54,23 +56,26 @@ class FlirD46PtzControlNode:
 
         self.is_moving = False
 
-        self.ptz_srv = actionlib.SimpleActionServer(f'{self.act_ns}/position', PtzAction, self.ptz_actionHandler, False)
+        self.ptz_abs_srv = actionlib.SimpleActionServer(f'{self.act_ns}/move_ptz/position_abs', PtzAction, self.ptz_abs_actionHandler, False)
+        self.ptz_rel_srv = actionlib.SimpleActionServer(f'{self.act_ns}/move_ptz/position_rel', PtzAction, self.ptz_rel_actionHandler, False)
 
-
-    ## Starts the subscribers, publishers, and service handlers
     def start(self):
+        """Starts the subscribers, publishers, and service handlers
+        """
         self.cmd_pub = rospy.Publisher(self.cmd_topic, JointState, queue_size=1)
         self.joint_state_sub = rospy.Subscriber('/joint_states', JointState, joint_state_callback, self)
         self.status_pub = rospy.Publisher(f'{self.act_ns}/ptz_state', PtzState, queue_size=1)
-        self.ptz_srv.start()
+        self.ptz_abs_srv.start()
+        self.ptz_rel_srv.start()
 
+    def ptz_abs_actionHandler(self, ptz_req):
+        """Handler for the PTZ.action call
 
-    ## Handler for the PTZ.action call
-    #  Converts the PTZ request into a JointState we write to the flir_ptu driver
-    #  and then wait until /joint_states reports that the PTU has finished moving
-    #
-    #  \param ptz_req  The PtzActionGoal object to process
-    def ptz_actionHandler(self, ptz_req):
+        Converts the PTZ request into a JointState we write to the flir_ptu driver
+        and then wait until /joint_states reports that the PTU has finished moving
+
+        @param ptz_req  The PtzActionGoal object to process
+        """
         # make sure the requested position is valid
         pan = clamp_value(ptz_req.pan, self.MIN_PAN, self.MAX_PAN, 'pan')
         tilt = clamp_value(ptz_req.tilt, self.MIN_PAN, self.MAX_TILT, 'tilt')
@@ -92,35 +97,58 @@ class FlirD46PtzControlNode:
         # To avoid the action server hanging, implement a hard timeout
         MAX_WAIT = 60.0         # moving from -135 to + 135 takes ~50s.
         elapsed_wait = 0.0
-        while self.is_moving and not self.ptz_srv.is_preempt_requested() and elapsed_wait < MAX_WAIT:
+        while self.is_moving and not self.ptz_abs_srv.is_preempt_requested() and elapsed_wait < MAX_WAIT:
             feedback = PtzFeedback()
             feedback.zoom_remaining = 0.0
             feedback.pan_remaining = self.goal_pan - self.current_pan
             feedback.tilt_remaining = self.goal_tilt - self.current_tilt
-            self.ptz_srv.publish_feedback(feedback)
+            self.ptz_abs_srv.publish_feedback(feedback)
             rate.sleep()
             elapsed_wait = elapsed_wait + 0.1   # rate is 10Hz, so each spin is 0.1s
 
-        if self.ptz_srv.is_preempt_requested():
+        if self.ptz_abs_srv.is_preempt_requested():
             rospy.logwarn("PTZ action cancelled")
             self.is_moving = False
-            self.ptz_srv.set_preempted()
+            self.ptz_abs_srv.set_preempted()
         elif elapsed_wait >= MAX_WAIT:
             rospy.logwarn("PTZ action timed out.  Assuming movement is complete")
             self.is_moving = False
             ptz_resp = PtzResult()
             ptz_resp.success = True
-            self.ptz_srv.set_succeeded(ptz_resp)
+            self.ptz_abs_srv.set_succeeded(ptz_resp)
         else:
             ptz_resp = PtzResult()
             ptz_resp.success = True
-            self.ptz_srv.set_succeeded(ptz_resp)
+            self.ptz_abs_srv.set_succeeded(ptz_resp)
 
+    def ptz_rel_actionHandler(self, ptz_req):
+        """Handler for moving the camera to a relative pan/tilt/zoom from current
 
-    ## Monitors /joint_states to determine if the pan and tilt joints have reached their goal positions yet
-    #
-    # \param data  The JointState information received on /joint_states
+        Converts the relative pan/tilt to absolute positions and uses the position_abs action
+        """
+        abs_goal = PtzGoal(self.current_pan + ptz_req.pan, self.current_tilt + ptz_req.tilt, 0)
+        ptz_client = actionlib.SimpleActionClient("move_ptz/position_abs", PtzAction)
+        ptz_client.wait_for_server()
+
+        def done_cb(state, result):
+            if state == actionlib.GoalStatus.SUCCEEDED:
+                self.ptz_rel_srv.set_succeeded(result)
+            elif state == actionlib.GoalStatus.PREEMPTED:
+                self.ptz_rel_srv.set_preempted()
+            else:
+                self.ptz_rel_srv.set_aborted(result)
+
+        ptz_client.send_goal(abs_goal,
+            feedback_cb = lambda fb: self.ptz_rel_srv.publish_feedback(fb),
+            done_cb = done_cb
+        )
+        ptz_client.wait_for_result()
+
     def joint_state_callback(self, data):
+        """Monitors /joint_states to determine if the pan and tilt joints have reached their goal positions yet
+
+        @param data  The JointState information received on /joint_states
+        """
         try:
             pan_index = data.name.index(self.pan_joint)
             tilt_index = data.name.index(self.tilt_joint)
@@ -176,14 +204,13 @@ class FlirD46PtzControlNode:
         except Exception as err:
             rospy.logerror(err)
 
-
-    ## Convert the PtzResult to a JointState we can write back to the driver
-    #
-    # \param  goal_pan   The desired pan angle, in radians
-    # \param  goal_tilt  The desired tilt angle, in radians
-    # \return a JointState object corresponding to the requested PTZ position
     def mk_joint_state(self, goal_pan, goal_tilt):
+        """Convert the PtzResult to a JointState we can write back to the driver
 
+        @param  goal_pan   The desired pan angle, in radians
+        @param  goal_tilt  The desired tilt angle, in radians
+        @return a JointState object corresponding to the requested PTZ position
+        """
         # convert from the action coordinate range to the hardware coordiante range
         if self.INVERT_PAN:
             goal_pan = -goal_pan
