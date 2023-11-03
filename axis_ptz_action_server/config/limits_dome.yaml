@@ -9,4 +9,4 @@ max_tilt: 1.5707963267948966
 min_zoom: 1
 max_zoom: 9999
 min_logical_zoom: 1
-max_logical_zoom: 24
+max_logical_zoom: 100

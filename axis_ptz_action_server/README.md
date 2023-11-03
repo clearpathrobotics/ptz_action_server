@@ -11,9 +11,33 @@ Parameters
 -----------
 
 The `axis_ptz_action_server_node` takes the following parameters:
-- `cmd_topic` -- the name of the `Axis.msg` topic provided by the `axis_camera` package to move the unit. Default: `/axis/cmd`
-- `status_topic` -- the name of the `Axis.msg` topic provided by the `flir_ptu` package to report the camera's state. Default: `/axis/state`
-- `act_ns` -- the name of the `Ptz.action` service the node provides. Default: `/ptu_driver/ptz_cmd`
+- `cmd_ns` -- the namespace for the `axis_camera` node's commands. Default: `/axis/cmd`
+- `status_topic` -- the topic for the `axis_camera` node's position status topic. Default: `/axis/state/position`
+- `act_ns` -- the namespace to publish the PTZ actions in. Default: `/axis`.
+- `publish_joint_states`: if true, the action server will publish the pan & tilt angles to `/joint_states`. Default: `true`
+- `pan_joint`: the name of the pan joint in the URDF. Default: `$(camera_name)_pan_joint`
+- `tilt_joint`: the name of the tilt joint in the URDF. Default: `$(camera_name)_tilt_joint`
+
+
+Usage
+------
+
+The `axis_ptz_action_server_node` publishes 3 actionlib servers:
+- `$(act_ns)/move_ptz/position_abs`: send an absolute pan/tilt/zoom position to the camera
+- `$(act_ns)/move_ptz/position_rel`: send a pan/tilt/zoom position relative to the camera's current position
+- `$(act_ns)/move_ptz/velocity`: send velocity control commands to the camera
+
+Pan and tilt values are expressed in radians (or rad/s for velocity control).  Positive pan is to the left relative
+to the camera's base link (anticlockwise), and positive tilt is up.
+
+Position-based zoom levels are in the range `[1, X]` where X is the magnification level of the camera. e.g. a camera with
+a 5x zoom will accept values in the range `[1, 5]` and a 24x zoom will accept values in the range `[1, 24]`.
+
+Velocity-based zoom levels are in the range `[-100, 100]` where the value is the percentage of the camera's maximum
+zoom speed. i.e. `100` is equivalent to zooming in at `100%` of maximum speed and `-25` is equivalent to zooming out
+at `25%` of maximum speed.
+
+These limits can be reconfigured. See `config/limits_dome.yaml` and `config/limits_q62` for examples.
 
 
 Published Topics
