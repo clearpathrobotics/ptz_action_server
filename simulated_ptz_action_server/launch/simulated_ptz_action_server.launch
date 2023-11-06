@@ -7,6 +7,6 @@
         args="pan_position_controller tilt_position_controller"/>
 
   <group ns="$(arg camera_ns)">
-    <node name="ptz_action_server" pkg="simulated_ptz_action_server" type="ptz_camera_sim_node" />
+    <node name="ptz_action_server_node" pkg="simulated_ptz_action_server" type="ptz_camera_sim_node" />
   </group>
 </launch>

@@ -8,7 +8,7 @@
   <arg name="publish_joint_states" default="true" />
 
   <group ns="$(arg act_ns)">
-    <node name="axis_ptz_action_server_node" pkg="axis_ptz_action_server" type="axis_ptz_action_server_node">
+    <node name="ptz_action_server_node" pkg="axis_ptz_action_server" type="axis_ptz_action_server_node">
       <param name="cmd_ns" value="$(arg cmd_ns)" />
       <param name="status_topic" value="$(arg status_topic)" />
       <param name="act_ns"       value="$(arg act_ns)" />
