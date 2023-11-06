@@ -24,9 +24,18 @@ class SimulatedPtzCameraNode:
     Zoom is implemented as a digital zoom, so expect poor resolution at higher levels.
     """
     def __init__(self):
-        self.pan_limits = rospy.get_param('~pan_limits', [-2*math.pi, 2*math.pi])    # -180 to 180
-        self.tilt_limits = rospy.get_param('~tilt_limits', [-math.pi/6, math.pi/2])  # -30 to 90
-        self.zoom_limits = rospy.get_param('~zoom_limits', [1, 5])                   # 1x to 5x zoom
+        self.pan_limits = [
+            rospy.get_param('~min_pan', -math.pi),
+            rospy.get_param('~max_pan', math.pi)
+        ]
+        self.tilt_limits = [
+            rospy.get_param('~min_tilt', -math.pi/2),
+            rospy.get_param('~max_tilt', math.pi/2)
+        ]
+        self.zoom_limits = [
+            rospy.get_param('~min_logical_zoom', 1),
+            rospy.get_param('~max_logical_zoom', 5)
+        ]
 
         self.current_pan = 0.0
         self.current_tilt = 0.0

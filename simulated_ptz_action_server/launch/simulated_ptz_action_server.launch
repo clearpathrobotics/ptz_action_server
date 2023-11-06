@@ -1,12 +1,15 @@
 <?xml version="1.0" ?>
 <launch>
   <arg name="camera_ns" default="/sensors/camera_0" />
+  <arg name="limits_config" default="$(find simulated_ptz_action_server)/config/limits.yaml" />
 
   <rosparam command="load" file="$(find simulated_ptz_action_server)/config/ptz_controllers.yaml" />
   <node name="ptz_action_server_spawner" pkg="controller_manager" type="spawner"
         args="pan_position_controller tilt_position_controller"/>
 
   <group ns="$(arg camera_ns)">
-    <node name="ptz_action_server_node" pkg="simulated_ptz_action_server" type="ptz_camera_sim_node" />
+    <node name="ptz_action_server_node" pkg="simulated_ptz_action_server" type="ptz_camera_sim_node">
+      <rosparam command="load" file="$(arg limits_config)" subst_value="true" />
+    </node>
   </group>
 </launch>
