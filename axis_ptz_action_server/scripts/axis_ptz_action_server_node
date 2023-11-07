@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
-import rospy
 import actionlib
+import math
+import rospy
 
 from axis_msgs.msg import Ptz
-from ptz_action_server_msgs.msg import PtzAction, PtzFeedback, PtzActionGoal, PtzResult
+from ptz_action_server_msgs.msg import PtzAction, PtzFeedback, PtzGoal, PtzResult
 from ptz_action_server_msgs.msg import PtzState
 from sensor_msgs.msg import JointState
 from threading import Lock, Thread
@@ -78,6 +79,8 @@ class AxisPtzControlNode:
 
         # The current logical PTZ state
         self.ptz_state = PtzState()
+        self.ptz_state.pan = 0
+        self.ptz_state.tilt = 0
         self.ptz_state.zoom = 1
 
         # is the camera currently moving?
@@ -116,8 +119,8 @@ class AxisPtzControlNode:
 
         @param data  The Ptz.msg information received on the topic
         """
-        pan = deg2rad(data.pan)
-        tilt = deg2rad(data.tilt)
+        pan = data.pan
+        tilt = data.tilt
         zoom = linear_rescale(data.zoom, self.min_hw_zoom, self.max_hw_zoom, self.min_logical_zoom, self.max_logical_zoom)
 
         # invert pan & tilt if necessary
@@ -126,27 +129,23 @@ class AxisPtzControlNode:
         if self.invert_pan:
             pan = -pan
 
-        # distance remaining to goal state
-        pan_remaining = abs(pan - self.goal_pan)
-        tilt_remaining = abs(tilt - self.goal_tilt)
-        zoom_remaining = abs(zoom - self.goal_zoom)
-
-        # delta between now and the previous reading
-        dpan = abs(pan - self.ptz_state.pan)
-        dtilt = abs(tilt - self.ptz_state.tilt)
-        dzoom = abs(zoom - self.ptz_state.zoom)
-
-        # assume we've stopped if the pan and tilt speeds are both less that 0.1 deg/s
-        # there aren't many use-cases where movement that slow would be necessary
-        POINT_ONE_DEGREE = deg2rad(0.1)
-
         if self.is_moving:
             if self.ptz_state.mode == PtzState.MODE_POSITION:
+                pan_remaining = abs(self.goal_pan - pan)
+                tilt_remaining = abs(self.goal_tilt - tilt)
+                zoom_remaining = abs(self.goal_zoom - zoom)
+
                 # check if we've reached the goal
-                if dpan <= self.position_tolerance and dtilt <= self.position_tolerance and dzoom <= self.zoom_tolerance:
+                if pan_remaining <= self.position_tolerance and \
+                   tilt_remaining <= self.position_tolerance and \
+                   zoom_remaining <= self.zoom_tolerance:
                     rospy.loginfo("PTZ reached goal!")
                     self.is_moving = False
             elif self.ptz_state.mode == PtzState.MODE_VELOCITY:
+                dpan = self.last_axis_state.pan - data.pan
+                dtilt = self.last_axis_state.tilt - data.tilt
+                dzoom = self.last_axis_state.zoom - data.zoom
+
                 if dpan == 0 and dtilt == 0 and dzoom == 0:
                     rospy.loginfo("PTZ reached end-of-travel!")
                     self.is_moving = False
@@ -207,10 +206,10 @@ class AxisPtzControlNode:
             # send the command to the camera
             self.is_moving = True
             cmd = Ptz()
-            ptz.pan = self.goal_pan
-            ptz.tilt = self.goal_tilt
-            ptz.zoom = self.goal_zoom
-            self.cmd_vel_pub.publish(cmd)
+            cmd.pan = self.goal_pan
+            cmd.tilt = self.goal_tilt
+            cmd.zoom = self.goal_zoom
+            self.cmd_pos_pub.publish(cmd)
             self.last_command_at = rospy.Time.now()
             self.ptz_state.mode = PtzState.MODE_POSITION
 
@@ -223,7 +222,7 @@ class AxisPtzControlNode:
                 feedback.zoom_remaining = self.goal_zoom - self.ptz_state.zoom
                 feedback.pan_remaining = self.goal_pan - self.ptz_state.pan
                 feedback.tilt_remaining = self.goal_tilt - self.ptz_state.tilt
-                self.ptz_srv.publish_feedback(feedback)
+                self.ptz_abs_srv.publish_feedback(feedback)
 
                 if rospy.Time.now() - self.last_state_at > self.STATE_TIMEOUT:
                     timed_out = True
@@ -254,9 +253,9 @@ class AxisPtzControlNode:
 
         Converts the relative pan/tilt/zoom to absolute positions and uses the position_abs action
         """
-        abs_goal = PtzGoal(self.current_pan + ptz_req.pan,
-                           self.current_tilt + ptz_req.tilt,
-                           self.current_zoom + ptz_req.zoom
+        abs_goal = PtzGoal(self.ptz_state.pan + ptz_req.pan,
+                           self.ptz_state.tilt + ptz_req.tilt,
+                           self.ptz_state.zoom + ptz_req.zoom
         )
 
         ptz_client = actionlib.SimpleActionClient("move_ptz/position_abs", PtzAction)
@@ -270,8 +269,11 @@ class AxisPtzControlNode:
             else:
                 self.ptz_rel_srv.set_aborted(result)
 
+        def feedback_cb(fb):
+            self.ptz_rel_srv.publish_feedback(fb)
+
         ptz_client.send_goal(abs_goal,
-            feedback_cb = lambda fb: self.ptz_rel_srv.publish_feedback(fb),
+            feedback_cb = feedback_cb,
             done_cb = done_cb
         )
         ptz_client.wait_for_result()
@@ -320,9 +322,9 @@ class AxisPtzControlNode:
                 timed_out = False
                 while self.is_moving and not self.vel_srv.is_preempt_requested() and not timed_out:
                     feedback = PtzFeedback()
-                    feedback.zoom_remaining = math.copysign(1, req.zoom)
-                    feedback.pan_remaining = math.copysign(1, req.pan)
-                    feedback.tilt_remaining = math.copysign(1, req.tilt)
+                    feedback.zoom_remaining = math.copysign(1, ptz_req.zoom)
+                    feedback.pan_remaining = math.copysign(1, ptz_req.pan)
+                    feedback.tilt_remaining = math.copysign(1, ptz_req.tilt)
                     self.vel_srv.publish_feedback(feedback)
 
                     if rospy.Time.now() - self.last_state_at > self.STATE_TIMEOUT:
