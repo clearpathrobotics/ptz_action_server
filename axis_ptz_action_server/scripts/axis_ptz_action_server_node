@@ -141,10 +141,15 @@ class AxisPtzControlNode:
         POINT_ONE_DEGREE = deg2rad(0.1)
 
         if self.is_moving:
-            # check if we've reached the goal
-            if pan_remaining <= self.position_tolerance and tilt_remaining <= self.position_tolerance and zoom_remaining <= self.zoom_tolerance:
-                rospy.loginfo("PTZ reached goal!")
-                self.is_moving = False
+            if self.ptz_state.mode == PtzState.MODE_POSITION:
+                # check if we've reached the goal
+                if dpan <= self.position_tolerance and dtilt <= self.position_tolerance and dzoom <= self.zoom_tolerance:
+                    rospy.loginfo("PTZ reached goal!")
+                    self.is_moving = False
+            elif self.ptz_state.mode == PtzState.MODE_VELOCITY:
+                if dpan == 0 and dtilt == 0 and dzoom == 0:
+                    rospy.loginfo("PTZ reached end-of-travel!")
+                    self.is_moving = False
 
         self.last_axis_state = data
         self.last_state_at = rospy.Time.now()
@@ -315,9 +320,9 @@ class AxisPtzControlNode:
                 timed_out = False
                 while self.is_moving and not self.vel_srv.is_preempt_requested() and not timed_out:
                     feedback = PtzFeedback()
-                    feedback.zoom_remaining = 0
-                    feedback.pan_remaining = 0
-                    feedback.tilt_remaining = 0
+                    feedback.zoom_remaining = math.copysign(1, req.zoom)
+                    feedback.pan_remaining = math.copysign(1, req.pan)
+                    feedback.tilt_remaining = math.copysign(1, req.tilt)
                     self.vel_srv.publish_feedback(feedback)
 
                     if rospy.Time.now() - self.last_state_at > self.STATE_TIMEOUT:
