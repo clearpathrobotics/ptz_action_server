@@ -387,22 +387,15 @@ class AxisPtzControlNode:
                 q = tf_stamped.transform.rotation
                 (roll, pitch, yaw) = tf.transformations.euler_from_quaternion([q.x, q.y, q.z, q.w])
 
-                print(f"{roll} {pitch} {yaw}")
-
-                abs_goal.pan = abs_goal.pan + yaw
-                abs_goal.tilt = abs_goal.tilt + pitch
+                if abs(roll) > deg2rad(5) or abs(pitch) > deg2rad(5):
+                    rospy.logwarn(f"{self.camera_base_link} and {ptz_req.frame_id} are not coplanar; pitch errors may result")
 
                 # clamp the adjusted pan to lie within [-pi, pi]
+                abs_goal.pan = abs_goal.pan + yaw
                 while abs_goal.pan < -math.pi:
                     abs_goal.pan += math.pi
                 while abs_goal.pan < math.pi:
                     abs_goal.pan -= math.pi
-
-                # clamp the adjusted tilt to lie within [-pi/2, pi/2]
-                while abs_goal.tilt < -math.pi/2:
-                    abs_goal.tilt += math.pi
-                while abs_goal.tilt < math.pi/2:
-                    abs_goal.tilt -= math.pi
 
             except Exception as err:
                 rospy.logerr(f"Failed to look up transform between {self.camera_base_link} and {ptz_req.frame_id}: {err}")
