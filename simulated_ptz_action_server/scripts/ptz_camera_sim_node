@@ -3,8 +3,12 @@
 import actionlib
 import math
 import rospy
+import tf2_ros
+import tf2_geometry_msgs
+import tf.transformations
 
 from ptz_action_server_msgs.msg import PtzAction, PtzFeedback, PtzGoal, PtzResult
+from ptz_action_server_msgs.msg import PtzRelToAction, PtzRelToFeedback, PtzRelToGoal, PtzRelToResult
 from ptz_action_server_msgs.msg import PtzState
 from sensor_msgs.msg import Image, JointState
 from std_msgs.msg import Float64
@@ -37,6 +41,8 @@ class SimulatedPtzCameraNode:
             rospy.get_param('~max_logical_zoom', 5)
         ]
 
+        self.camera_base_link = rospy.get_param("~camera_base_link", "base_link")
+
         self.current_pan = 0.0
         self.current_tilt = 0.0
         self.current_zoom = 1.0
@@ -61,8 +67,10 @@ class SimulatedPtzCameraNode:
 
         self.ptz_abs_srv = actionlib.SimpleActionServer('move_ptz/position_abs', PtzAction, self.ptz_abs_actionHandler, False)
         self.ptz_rel_srv = actionlib.SimpleActionServer('move_ptz/position_rel', PtzAction, self.ptz_rel_actionHandler, False)
+        self.tf_ptz_abs_srv = actionlib.SimpleActionServer('move_ptz/position_abs_tf', PtzRelToAction, self.tf_ptz_abs_actionHandler, False)
         self.ptz_abs_srv.start()
         self.ptz_rel_srv.start()
+        self.tf_ptz_abs_srv.start()
 
         # spin and publish the ptz status at 10Hz
         rate = rospy.Rate(10)
@@ -201,6 +209,68 @@ class SimulatedPtzCameraNode:
         )
         ptz_client.wait_for_result()
 
+    def tf_ptz_abs_actionHandler(self, ptz_req):
+        """Handler for a TF-aware absolute PTZ action
+
+        We calculate the TF between the camera's base link & the link provided in the request, and then use
+        the normal absolute PTZ action internally to move the camera to the corresponding position
+        """
+        # calculate the initial absolute goal as if there is no TF to apply
+        abs_goal = PtzGoal(ptz_req.pan,
+                           ptz_req.tilt,
+                           ptz_req.zoom
+        )
+
+        if ptz_req.frame_id:
+            try:
+                # The the RPY transformation between the camera base link & the reference frame
+                tf_buffer = tf2_ros.Buffer(rospy.Duration(100.0))
+                tf_listener = tf2_ros.TransformListener(tf_buffer)
+                tf_stamped = tf_buffer.lookup_transform(self.camera_base_link, ptz_req.frame_id, rospy.Time(0), rospy.Duration(5.0))
+                q = tf_stamped.transform.rotation
+                (roll, pitch, yaw) = tf.transformations.euler_from_quaternion([q.x, q.y, q.z, q.w])
+
+                print(f"{roll} {pitch} {yaw}")
+
+                abs_goal.pan = abs_goal.pan + yaw
+                abs_goal.tilt = abs_goal.tilt + pitch
+
+                # clamp the adjusted pan to lie within [-pi, pi]
+                while abs_goal.pan < -math.pi:
+                    abs_goal.pan += math.pi
+                while abs_goal.pan < math.pi:
+                    abs_goal.pan -= math.pi
+
+                # clamp the adjusted tilt to lie within [-pi/2, pi/2]
+                while abs_goal.tilt < -math.pi/2:
+                    abs_goal.tilt += math.pi
+                while abs_goal.tilt < math.pi/2:
+                    abs_goal.tilt -= math.pi
+
+            except Exception as err:
+                rospy.logerr(f"Failed to look up transform between {self.camera_base_link} and {ptz_req.frame_id}: {err}")
+
+        ptz_client = actionlib.SimpleActionClient("move_ptz/position_abs", PtzAction)
+        ptz_client.wait_for_server()
+
+        def done_cb(state, result):
+            tf_result = PtzRelToResult(result.success)
+            if state == actionlib.GoalStatus.SUCCEEDED:
+                self.tf_ptz_abs_srv.set_succeeded(tf_result)
+            elif state == actionlib.GoalStatus.PREEMPTED:
+                self.tf_ptz_abs_srv.set_preempted()
+            else:
+                self.tf_ptz_abs_srv.set_aborted(tf_result)
+
+        def feedback_cb(fb):
+            tf_fb = PtzRelToFeedback(fb.pan_remaining, fb.tilt_remaining, fb.zoom_remaining)
+            self.tf_ptz_abs_srv.publish_feedback(tf_fb)
+
+        ptz_client.send_goal(abs_goal,
+            feedback_cb = feedback_cb,
+            done_cb = done_cb
+        )
+        ptz_client.wait_for_result()
 
     def joint_state_callback(self, data):
         """Read the current joint_states and update the camera's current position

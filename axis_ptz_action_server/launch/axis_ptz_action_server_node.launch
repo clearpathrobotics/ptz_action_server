@@ -16,6 +16,7 @@
       <param name="publish_joint_states" value="$(arg publish_joint_states)" />
       <param name="pan_joint"  value="$(arg camera_name)_pan_joint" />
       <param name="tilt_joint" value="$(arg camera_name)_tilt_joint" />
+      <param name="camera_base_link" value="$(arg camera_name)_base_link" />
       <rosparam command="load" file="$(arg limits_config)" subst_value="true" />
     </node>
   </group>
