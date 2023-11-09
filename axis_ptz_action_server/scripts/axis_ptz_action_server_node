@@ -6,8 +6,10 @@ import rospy
 import tf2_ros
 import tf2_geometry_msgs
 import tf.transformations
+import uuid
 
 from axis_msgs.msg import Ptz
+from geometry_msgs.msg import TransformStamped
 from ptz_action_server_msgs.msg import PtzAction, PtzFeedback, PtzGoal, PtzResult
 from ptz_action_server_msgs.msg import PtzRelToAction, PtzRelToFeedback, PtzRelToGoal, PtzRelToResult
 from ptz_action_server_msgs.msg import PtzState
@@ -100,6 +102,9 @@ class AxisPtzControlNode:
 
         self.last_state_at = rospy.Time.now()
         self.last_command_at = rospy.Time.now()
+
+        self.tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
+        self.camera_vector_frame = f"camera_vector_frame_{str(uuid.uuid1()).replace('-', '_')}"
 
     def start(self):
         """Starts the subscribers, publishers, and service handlers
@@ -380,25 +385,39 @@ class AxisPtzControlNode:
 
         if ptz_req.frame_id:
             try:
+                # add a temporary frame to represent the desired camera vector
+                camera_vector_q = tf.transformations.quaternion_from_euler(0, -ptz_req.tilt, ptz_req.pan)
+                static_tf = TransformStamped()
+                static_tf.header.stamp = rospy.Time.now()
+                static_tf.header.frame_id = ptz_req.frame_id
+                static_tf.child_frame_id = self.camera_vector_frame
+                static_tf.transform.rotation.x = camera_vector_q[0]
+                static_tf.transform.rotation.y = camera_vector_q[1]
+                static_tf.transform.rotation.z = camera_vector_q[2]
+                static_tf.transform.rotation.w = camera_vector_q[3]
+                self.tf_broadcaster.sendTransform(static_tf)
+
                 # The the RPY transformation between the camera base link & the reference frame
                 tf_buffer = tf2_ros.Buffer(rospy.Duration(100.0))
                 tf_listener = tf2_ros.TransformListener(tf_buffer)
-                tf_stamped = tf_buffer.lookup_transform(self.camera_base_link, ptz_req.frame_id, rospy.Time(0), rospy.Duration(5.0))
+                tf_stamped = tf_buffer.lookup_transform(self.camera_base_link, self.camera_vector_frame, rospy.Time(0), rospy.Duration(5.0))
                 q = tf_stamped.transform.rotation
                 (roll, pitch, yaw) = tf.transformations.euler_from_quaternion([q.x, q.y, q.z, q.w])
 
-                if abs(roll) > deg2rad(5) or abs(pitch) > deg2rad(5):
-                    rospy.logwarn(f"{self.camera_base_link} and {ptz_req.frame_id} are not coplanar; pitch errors may result")
+                abs_goal.pan = yaw
+                abs_goal.tilt = -pitch
 
                 # clamp the adjusted pan to lie within [-pi, pi]
-                abs_goal.pan = abs_goal.pan + yaw
                 while abs_goal.pan < -math.pi:
                     abs_goal.pan += math.pi
-                while abs_goal.pan < math.pi:
+                while abs_goal.pan > math.pi:
                     abs_goal.pan -= math.pi
 
-            except Exception as err:
-                rospy.logerr(f"Failed to look up transform between {self.camera_base_link} and {ptz_req.frame_id}: {err}")
+                # clamp the adjusted tilt to lie within [-pi/2, pi/2]
+                while abs_goal.tilt < -math.pi/2:
+                    abs_goal.tilt += math.pi
+                while abs_goal.tilt > math.pi/2:
+                    abs_goal.tilt -= math.pi
 
         ptz_client = actionlib.SimpleActionClient("move_ptz/position_abs", PtzAction)
         ptz_client.wait_for_server()
