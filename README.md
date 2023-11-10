@@ -18,7 +18,7 @@ hardware:
   a subset of that range
 - tilt has a maximum allowable range of -pi/2 to +pi/2, though cameras with a restricted field of motion may suport
   a subset of that range
-- positive pan indicates counter-clockwise rotation, negative pan indicates clockwise rotation when the camera is viewed
+- positive pan indicates clockwise rotation, negative pan indicates anticlockwise rotation when the camera is viewed
   from above
 - positive tilt will pitch the camera upwards, negative tilt will pitch the camera downwards
 - zoom is the X-factor of the camera's zoom range. For example, a camera with a 1-24x zoom shall accept zoom values

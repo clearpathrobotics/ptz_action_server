@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_action_files(
   FILES
   Ptz.action
+  PtzFrame.action
   PtzRelTo.action
 )
 
