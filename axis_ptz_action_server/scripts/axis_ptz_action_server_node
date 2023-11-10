@@ -11,6 +11,7 @@ import uuid
 from axis_msgs.msg import Ptz
 from geometry_msgs.msg import TransformStamped
 from ptz_action_server_msgs.msg import PtzAction, PtzFeedback, PtzGoal, PtzResult
+from ptz_action_server_msgs.msg import PtzFrameAction, PtzFrameFeedback, PtzFrameGoal, PtzFrameResult
 from ptz_action_server_msgs.msg import PtzRelToAction, PtzRelToFeedback, PtzRelToGoal, PtzRelToResult
 from ptz_action_server_msgs.msg import PtzState
 from sensor_msgs.msg import JointState
@@ -99,6 +100,7 @@ class AxisPtzControlNode:
         self.ptz_rel_srv = actionlib.SimpleActionServer(f'{self.act_ns}/move_ptz/position_rel', PtzAction, self.ptz_rel_actionHandler, False)
         self.vel_srv = actionlib.SimpleActionServer(f'{self.act_ns}/move_ptz/velocity', PtzAction, self.vel_actionHandler, False)
         self.tf_ptz_abs_srv = actionlib.SimpleActionServer(f'{self.act_ns}/move_ptz/position_abs_tf', PtzRelTo, self.tf_ptz_abs_actionHandler, False)
+        self.frame_ptz_srv = actionlib.SimpleActionServer('move_ptz/frame', PtzFrameAction, self.frame_ptz_actionHandler, False)
 
         self.last_state_at = rospy.Time.now()
         self.last_command_at = rospy.Time.now()
@@ -123,6 +125,7 @@ class AxisPtzControlNode:
         self.ptz_rel_srv.start()
         self.vel_srv.start()
         self.tf_ptz_abs_srv.start()
+        self.frame_ptz_srv.start()
 
     def state_callback(self, data):
         """Monitors the position of the camera to determine if the pan and tilt joints have reached their
@@ -441,6 +444,70 @@ class AxisPtzControlNode:
             done_cb = done_cb
         )
         ptz_client.wait_for_result()
+
+    def frame_ptz_actionHandler(self, ptz_req):
+        """Pan & tilt the camera to point to a specific frame in the TF tree
+        """
+        abs_goal = PtzGoal()
+        abs_goal.zoom = ptz_req.zoom
+
+        try:
+            # The the transformation between the camera base link & the reference frame
+            tf_buffer = tf2_ros.Buffer(rospy.Duration(100.0))
+            tf_listener = tf2_ros.TransformListener(tf_buffer)
+            tf_stamped = tf_buffer.lookup_transform(self.camera_base_link, ptz_req.frame_id, rospy.Time(0), rospy.Duration(5.0))
+
+            # we want to get the pan & tilt needed to point at the frame
+            r = math.sqrt(tf_stamped.transform.translation.x**2 + tf_stamped.transform.translation.y**2 + tf_stamped.transform.translation.z**2)
+            yaw = math.atan2(tf_stamped.transform.translation.y, tf_stamped.transform.translation.x)
+            pitch = -math.asin(tf_stamped.transform.translation.z/r)
+
+            # yaw & pitch are right-handed, but pan & tilt are left-handed, so invert them
+            abs_goal.pan = -yaw
+            abs_goal.tilt = -pitch
+
+            # clamp the adjusted pan to lie within [-pi, pi]
+            while abs_goal.pan < -math.pi:
+                abs_goal.pan += math.pi
+            while abs_goal.pan > math.pi:
+                abs_goal.pan -= math.pi
+
+            # clamp the adjusted tilt to lie within [-pi/2, pi/2]
+            while abs_goal.tilt < -math.pi/2:
+                abs_goal.tilt += math.pi
+            while abs_goal.tilt > math.pi/2:
+                abs_goal.tilt -= math.pi
+
+            print(abs_goal)
+
+            ptz_client = actionlib.SimpleActionClient("move_ptz/position_abs", PtzAction)
+            ptz_client.wait_for_server()
+
+            def done_cb(state, result):
+                tf_result = PtzFrameResult(result.success)
+                if state == actionlib.GoalStatus.SUCCEEDED:
+                    self.frame_ptz_srv.set_succeeded(tf_result)
+                elif state == actionlib.GoalStatus.PREEMPTED:
+                    self.frame_ptz_srv.set_preempted()
+                else:
+                    self.frame_ptz_srv.set_aborted(tf_result)
+
+            def feedback_cb(fb):
+                tf_fb = PtzFrameFeedback(fb.pan_remaining, fb.tilt_remaining, fb.zoom_remaining)
+                self.frame_ptz_srv.publish_feedback(tf_fb)
+
+            ptz_client.send_goal(abs_goal,
+                feedback_cb = feedback_cb,
+                done_cb = done_cb
+            )
+            ptz_client.wait_for_result()
+
+        except Exception as err:
+            err_msg = f"Failed to look up transform between {self.camera_base_link} and {ptz_req.frame_id}: {err}"
+            rospy.logerr(err_msg)
+            result = PtzFrameResult()
+            result.success = False
+            self.frame_ptz_srv.set_aborted(result, err_msg)
 
 
 def main():
