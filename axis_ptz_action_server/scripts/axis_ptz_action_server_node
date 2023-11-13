@@ -99,7 +99,7 @@ class AxisPtzControlNode:
         self.ptz_abs_srv = actionlib.SimpleActionServer(f'{self.act_ns}/move_ptz/position_abs', PtzAction, self.ptz_abs_actionHandler, False)
         self.ptz_rel_srv = actionlib.SimpleActionServer(f'{self.act_ns}/move_ptz/position_rel', PtzAction, self.ptz_rel_actionHandler, False)
         self.vel_srv = actionlib.SimpleActionServer(f'{self.act_ns}/move_ptz/velocity', PtzAction, self.vel_actionHandler, False)
-        self.tf_ptz_abs_srv = actionlib.SimpleActionServer(f'{self.act_ns}/move_ptz/position_abs_tf', PtzRelTo, self.tf_ptz_abs_actionHandler, False)
+        self.tf_ptz_abs_srv = actionlib.SimpleActionServer(f'{self.act_ns}/move_ptz/position_abs_tf', PtzRelToAction, self.tf_ptz_abs_actionHandler, False)
         self.frame_ptz_srv = actionlib.SimpleActionServer('move_ptz/frame', PtzFrameAction, self.frame_ptz_actionHandler, False)
 
         self.last_state_at = rospy.Time.now()
@@ -422,6 +422,9 @@ class AxisPtzControlNode:
                     abs_goal.tilt += math.pi
                 while abs_goal.tilt > math.pi/2:
                     abs_goal.tilt -= math.pi
+
+            except Exception as err:
+                rospy.logerr(f"Failed to look up transform between {self.camera_base_link} and {ptz_req.frame_id}: {err}")
 
         ptz_client = actionlib.SimpleActionClient("move_ptz/position_abs", PtzAction)
         ptz_client.wait_for_server()
