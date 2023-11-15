@@ -2,8 +2,8 @@
 Changelog for package axis_ptz_action_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.1.6 (2023-11-15)
+------------------
 * Major overhaul to add new control modes (`#4 <https://github.com/clearpathrobotics/ptz_action_server/issues/4>`_)
   * Rename PtzPosition.msg to PtzState.msg, add support for velocity control. Rename .../move_ptz action to .../position, add .../velocity to Axis camera to allow velocity control
   * Add support for move_ptz/position_abs and move_ptz/position_rel actions
