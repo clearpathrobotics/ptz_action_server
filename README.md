@@ -18,7 +18,7 @@ hardware:
   a subset of that range
 - tilt has a maximum allowable range of -pi/2 to +pi/2, though cameras with a restricted field of motion may suport
   a subset of that range
-- positive pan indicates counter-clockwise rotation, negative pan indicates clockwise rotation when the camera is viewed
+- positive pan indicates clockwise rotation, negative pan indicates anticlockwise rotation when the camera is viewed
   from above
 - positive tilt will pitch the camera upwards, negative tilt will pitch the camera downwards
 - zoom is the X-factor of the camera's zoom range. For example, a camera with a 1-24x zoom shall accept zoom values
@@ -45,12 +45,19 @@ float32 zoom_remaining
 
 The current state of the camera is reported using the following message format:
 ```
-# PtzPosition.msg
+# PtzState.msg
+int8 MODE_IDLE=0
+int8 MODE_POSITION=1
+int8 MODE_VELOCITY=2
+
+int8 mode
+
 float32 pan
 float32 tilt
 float32 zoom
-
 ```
+
+Regardless of the operating mode, the `pan`, `tilt`, and `zoom` fields report the current positions of the camera.
 
 
 Supported Implementations

@@ -9,15 +9,12 @@
 
   <buildtool_depend>catkin</buildtool_depend>
 
-
-  <depend>ptz_action_server_msgs</depend>
-  <depend>rospy</depend>
-  <depend>actionlib_msgs</depend>
-  <depend>sensor_msgs</depend>
-  <depend>std_msgs</depend>
-
-  <exec_depend>flir_ptu_driver</exec_depend>
   <exec_depend>actionlib</exec_depend>
+  <exec_depend>flir_ptu_driver</exec_depend>
+  <exec_depend>ptz_action_server_msgs</exec_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
 
   <export>
   </export>

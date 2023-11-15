@@ -18,7 +18,12 @@ roslaunch simulated_ptz_action_server simulated_ptz_action_server.launch
 The digitally-zoomed camera data will be available on `/sensor/camera_0/image_raw` and the PTZ actions are
 available in `/sensors/camera_0/move_ptz`.
 
-To control the camera, simply connect your `actionlib` client to the `/sensors/camera_0/move_ptz` action.
+The node provides two `actionlib` servers:
+- `move_ptz/position_abs`: sends an absolute pan/tilt/zoom destination for the camera to move to
+- `move_ptz/position_rel`: sends a desired pan/tilt/zoom destination relative to the camera's current position
+
+To control the camera, simply connect your `actionlib` client to the appropriate absolute or relative action server
+above and send goals.
 
 
 URDF Configuration & PID Controllers

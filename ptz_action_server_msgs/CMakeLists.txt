@@ -10,11 +10,13 @@ find_package(catkin REQUIRED COMPONENTS
 add_action_files(
   FILES
   Ptz.action
+  PtzFrame.action
+  PtzRelTo.action
 )
 
 add_message_files(
   FILES
-  PtzPosition.msg
+  PtzState.msg
 )
 
 generate_messages(

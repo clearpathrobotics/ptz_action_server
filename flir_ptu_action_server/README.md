@@ -12,8 +12,8 @@ Parameters
 -----------
 
 The `flir_ptu_action_server_node` takes the following parameters:
-- `cmd_topic` -- the name of the `JointState` topic provided by the `flir_ptu` package to move the unit. Default: `/ptu_driver/cmd`
-- `act_ns` -- the namespace of the `Ptz.action` actions the node provides. Default: `/ptu_driver/ptz_cmd`
+- `cmd_topic` -- the name of the `JointState` topic provided by the `flir_ptu` package to move the unit. Default: `/ptu/cmd`
+- `act_ns` -- the namespace of the `Ptz.action` actions the node provides. Default: `/ptu`
 - `pan_joint` -- the name of the pan joint as published in `/joint_states`. Default: `ptu_pan`
 - `tilt_joint` -- the name of the tilt joint as published in `/joint_states`. Default: `ptu_tilt`
 
@@ -25,7 +25,8 @@ Subscriptions
 Published Topics
 -----------------
 
-The node provides the `move_ptz` action with its corresponding `goal`, `feedback`, `result`, and `cancel` topics
-in the namespace defined by `act_ns` as described above.
+The node provides two actions within the `act_ns` namespace:
+- `move_ptz/position_abs`: send an absolute pan/tilt position (zoom is ignored)
+- `move_ptz/position_rel`: send a goal position relative to the current position (zoom is ignored)
 
 The current position of the PTU is published on `{act_ns}/ptz_state` using the `ptz_action_server_msgs/PtzPosition` message type.

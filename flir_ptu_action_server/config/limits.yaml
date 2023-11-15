@@ -15,3 +15,11 @@ max_tilt: 0.5410520681182421
 # e.g. if a camera is mounted backwards the tilt may need to be inverted
 invert_pan: false
 invert_tilt: false
+
+# Zoom levels for PTZ interface
+# The PTU doesn't actually support zooming, so these parameters are only for any
+# automated external processes that check parameters (e.g. GUI controls)
+min_zoom: 1
+max_zoom: 1
+min_logical_zoom: 1
+max_logical_zoom: 1

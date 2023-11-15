@@ -7,7 +7,7 @@
   <arg name="limits" default="$(find flir_ptu_action_server)/config/limits.yaml" />
 
   <group ns="$(arg act_ns)">
-    <node name="flir_ptu_action_server_node" pkg="flir_ptu_action_server" type="flir_ptu_action_server_node">
+    <node name="ptz_action_server_node" pkg="flir_ptu_action_server" type="flir_ptu_action_server_node">
       <param name="cmd_topic" value="$(arg cmd_topic)" />
       <param name="pan_joint" value="$(arg pan_joint)" />
       <param name="tilt_joint" value="$(arg tilt_joint)" />
