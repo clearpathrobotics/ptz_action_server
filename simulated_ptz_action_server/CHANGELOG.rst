@@ -2,6 +2,9 @@
 Changelog for package ptz_action_server_msgs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 0.1.6 (2023-11-15)
 ------------------
 * Major overhaul to add new control modes (`#4 <https://github.com/clearpathrobotics/ptz_action_server/issues/4>`_)
