@@ -224,7 +224,7 @@ class AxisPtzControlNode:
             cmd = Ptz()
             cmd.pan = self.goal_pan
             cmd.tilt = self.goal_tilt
-            cmd.zoom = self.goal_zoom
+            cmd.zoom = linear_rescale(self.goal_zoom, self.min_logical_zoom, self.max_logical_zoom, self.min_zoom, self.max_zoom)
             self.cmd_pos_pub.publish(cmd)
             self.last_command_at = rospy.Time.now()
             self.ptz_state.mode = PtzState.MODE_POSITION
@@ -480,8 +480,6 @@ class AxisPtzControlNode:
                 abs_goal.tilt += math.pi
             while abs_goal.tilt > math.pi/2:
                 abs_goal.tilt -= math.pi
-
-            print(abs_goal)
 
             ptz_client = actionlib.SimpleActionClient("move_ptz/position_abs", PtzAction)
             ptz_client.wait_for_server()
