@@ -2,6 +2,9 @@
 Changelog for package flir_ptu_action_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 0.1.7 (2023-11-22)
 ------------------
 * Fix the dependencies for the Flir PTU action server

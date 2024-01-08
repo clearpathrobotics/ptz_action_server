@@ -2,6 +2,11 @@
 Changelog for package axis_ptz_action_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Apply the logical -> physical zoom scaling when sending the absolute zoom level to the Axis driver. Remove an unnecessary debug print
+* Contributors: Chris Iverach-Brereton
+
 0.1.7 (2023-11-22)
 ------------------
 
