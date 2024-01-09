@@ -2,8 +2,8 @@
 Changelog for package axis_ptz_action_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.1.9 (2024-01-09)
+------------------
 * Fix a bug in translating the zoom level from the logical to hardware range
 * Contributors: Chris Iverach-Brereton
 

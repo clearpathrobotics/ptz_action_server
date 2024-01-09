@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>flir_ptu_action_server</name>
-  <version>0.1.8</version>
+  <version>0.1.9</version>
   <description>PTZ control services for the Flir D46 and E46 PTU devices</description>
 
   <maintainer email="civerachb@clearpathrobotics.com">Chris Iverach-Brereton</maintainer>
