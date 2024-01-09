@@ -224,7 +224,7 @@ class AxisPtzControlNode:
             cmd = Ptz()
             cmd.pan = self.goal_pan
             cmd.tilt = self.goal_tilt
-            cmd.zoom = linear_rescale(self.goal_zoom, self.min_logical_zoom, self.max_logical_zoom, self.min_zoom, self.max_zoom)
+            cmd.zoom = linear_rescale(self.goal_zoom, self.min_logical_zoom, self.max_logical_zoom, self.min_hw_zoom, self.max_hw_zoom)
             self.cmd_pos_pub.publish(cmd)
             self.last_command_at = rospy.Time.now()
             self.ptz_state.mode = PtzState.MODE_POSITION
