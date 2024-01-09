@@ -2,6 +2,9 @@
 Changelog for package flir_ptu_action_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 0.1.8 (2024-01-08)
 ------------------
 
