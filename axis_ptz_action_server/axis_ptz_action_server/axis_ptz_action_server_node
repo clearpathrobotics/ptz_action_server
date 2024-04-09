@@ -111,13 +111,13 @@ class AxisPtzControlNode:
     def start(self):
         """Starts the subscribers, publishers, and service handlers
         """
-        self.cmd_pos_pub = rospy.Publisher(self.cmd_pos_topic, Ptz, queue_size=1)
-        self.cmd_vel_pub = rospy.Publisher(self.cmd_vel_topic, Ptz, queue_size=1)
-        self.status_sub = rospy.Subscriber(self.status_topic, Ptz, self.state_callback)
-        self.status_pub = rospy.Publisher(f'{self.act_ns}/ptz_state', PtzState, queue_size=1)
+        self.cmd_pos_pub = node.create_publisher(Ptz, queue_size=1, self.cmd_pos_topic)
+        self.cmd_vel_pub = node.create_publisher(Ptz, queue_size=1, self.cmd_vel_topic)
+        self.status_sub = node.create_subscription(Ptz, self.status_topic, self.state_callback)
+        self.status_pub = node.create_publisher(PtzState, queue_size=1, f'{self.act_ns}/ptz_state')
 
         if self.publish_joint_states:
-            self.joint_state_pub = rospy.Publisher("/joint_states", JointState, queue_size=1)
+            self.joint_state_pub = node.create_publisher(JointState, queue_size=1, "/joint_states")
             self.js_thread = Thread(target=self.joint_state_pub_thread)
             self.js_thread.start()
 
@@ -512,7 +512,8 @@ class AxisPtzControlNode:
 
 
 def main():
-    rospy.init_node('axis_ptz_action_server_node', anonymous=True)
+    rclpy.init()
+    node = rclpy.create_node('axis_ptz_action_server_node', anonymous=True)
     node = AxisPtzControlNode()
     node.start()
     rospy.spin()
