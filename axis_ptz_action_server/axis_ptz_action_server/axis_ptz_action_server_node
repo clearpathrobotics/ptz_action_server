@@ -29,7 +29,7 @@ class AxisPtzControlNode(Node):
     """
 
     ## How long before we consider the last message sent on the status topic to be stale?
-    STATE_TIMEOUT = rospy.Duration(10)
+    STATE_TIMEOUT = rclpy.duration.Duration(10)
 
     def __init__(self, name):
         super().__init__(name)
@@ -90,8 +90,8 @@ class AxisPtzControlNode(Node):
         self.tf_ptz_abs_srv = actionlib.SimpleActionServer(f'{self.act_ns}/move_ptz/position_abs_tf', PtzRelToAction, self.tf_ptz_abs_actionHandler, False)
         self.frame_ptz_srv = actionlib.SimpleActionServer('move_ptz/frame', PtzFrameAction, self.frame_ptz_actionHandler, False)
 
-        self.last_state_at = rospy.Time.now()
-        self.last_command_at = rospy.Time.now()
+        self.last_state_at = self.get_clock().now()
+        self.last_command_at = self.get_clock().now()
 
         self.tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
         self.camera_vector_frame = f"camera_vector_frame_{str(uuid.uuid1()).replace('-', '_')}"
@@ -170,7 +170,7 @@ class AxisPtzControlNode(Node):
                     self.is_moving = False
 
         self.last_axis_state = data
-        self.last_state_at = rospy.Time.now()
+        self.last_state_at = self.get_clock().now()
 
         # publish the current PTZ state
         self.ptz_state.pan = pan
@@ -181,9 +181,9 @@ class AxisPtzControlNode(Node):
     def joint_state_pub_thread(self):
         js = JointState()
 
-        rate = rospy.Rate(10)
-        while not rospy.is_shutdown():
-            js.header.stamp = rospy.Time.now()
+        rate = self.create_rate(10)
+        while not rclpy.ok():
+            js.header.stamp = self.get_clock().now()
             js.name = [self.pan_joint, self.tilt_joint]
             js.position = [self.ptz_state.pan, self.ptz_state.tilt]
             js.velocity = [0, 0]
@@ -206,7 +206,7 @@ class AxisPtzControlNode(Node):
             ptz_resp.success = False
             self.ptz_abs_srv.set_aborted(ptz_resp, 'Still waiting for initial state from the camera. Cannot move yet')
 
-        elif rospy.Time.now() - self.last_state_at > self.STATE_TIMEOUT:
+        elif self.get_clock().now() - self.last_state_at > self.STATE_TIMEOUT:
             # We haven't heard from the camera in a while; block until the camera updates its status again
             self.get_logger().warning("Status of Axis camera is stale. Waiting for the camera to come back online")
             ptz_resp = PtzResult()
@@ -229,12 +229,12 @@ class AxisPtzControlNode(Node):
             cmd.tilt = self.goal_tilt
             cmd.zoom = linear_rescale(self.goal_zoom, self.min_logical_zoom, self.max_logical_zoom, self.min_hw_zoom, self.max_hw_zoom)
             self.cmd_pos_pub.publish(cmd)
-            self.last_command_at = rospy.Time.now()
+            self.last_command_at = self.get_clock().now()
             self.ptz_state.mode = PtzState.MODE_POSITION
 
             # sleep until joint_states reports that the pan and tilt joints have reached the desired position OR
             # have stopped moving
-            rate = rospy.Rate(2)
+            rate = self.create_rate(2)
             timed_out = False
             while self.is_moving and not self.ptz_abs_srv.is_preempt_requested() and not timed_out:
                 feedback = PtzFeedback()
@@ -243,7 +243,7 @@ class AxisPtzControlNode(Node):
                 feedback.tilt_remaining = self.goal_tilt - self.ptz_state.tilt
                 self.ptz_abs_srv.publish_feedback(feedback)
 
-                if rospy.Time.now() - self.last_state_at > self.STATE_TIMEOUT:
+                if self.get_clock().now() - self.last_state_at > self.STATE_TIMEOUT:
                     timed_out = True
                 else:
                     rospy.logdebug(f"PTZ is still moving ({feedback.pan_remaining}, {feedback.tilt_remaining}, {feedback.zoom_remaining}) to go")
@@ -311,7 +311,7 @@ class AxisPtzControlNode(Node):
             ptz_resp = PtzResult()
             ptz_resp.success = False
             self.vel_srv.set_aborted(ptz_resp, 'Still waiting for initial state from the camera. Cannot move yet')
-        elif rospy.Time.now() - self.last_state_at > self.STATE_TIMEOUT:
+        elif self.get_clock().now() - self.last_state_at > self.STATE_TIMEOUT:
             # We haven't heard from the camera in a while; block until the camera updates its status again
             self.get_logger().warning("Status of Axis camera is stale. Waiting for the camera to come back online")
             ptz_resp = PtzResult()
@@ -337,7 +337,7 @@ class AxisPtzControlNode(Node):
                 self.is_moving = True
                 self.ptz_state.mode = PtzState.MODE_VELOCITY
 
-                rate = rospy.Rate(2)
+                rate = self.create_rate(2)
                 timed_out = False
                 while self.is_moving and not self.vel_srv.is_preempt_requested() and not timed_out:
                     feedback = PtzFeedback()
@@ -346,7 +346,7 @@ class AxisPtzControlNode(Node):
                     feedback.tilt_remaining = math.copysign(1, ptz_req.tilt)
                     self.vel_srv.publish_feedback(feedback)
 
-                    if rospy.Time.now() - self.last_state_at > self.STATE_TIMEOUT:
+                    if self.get_clock().now() - self.last_state_at > self.STATE_TIMEOUT:
                         timed_out = True
                     else:
                         rospy.logdebug(f"PTZ is still moving ({feedback.pan_remaining}, {feedback.tilt_remaining}, {feedback.zoom_remaining}) to go")
@@ -394,7 +394,7 @@ class AxisPtzControlNode(Node):
                 # add a temporary frame to represent the desired camera vector
                 camera_vector_q = tf.transformations.quaternion_from_euler(0, -ptz_req.tilt, ptz_req.pan)
                 static_tf = TransformStamped()
-                static_tf.header.stamp = rospy.Time.now()
+                static_tf.header.stamp = self.get_clock().now()
                 static_tf.header.frame_id = ptz_req.frame_id
                 static_tf.child_frame_id = self.camera_vector_frame
                 static_tf.transform.rotation.x = camera_vector_q[0]
@@ -404,9 +404,9 @@ class AxisPtzControlNode(Node):
                 self.tf_broadcaster.sendTransform(static_tf)
 
                 # The the RPY transformation between the camera base link & the reference frame
-                tf_buffer = tf2_ros.Buffer(rospy.Duration(100.0))
+                tf_buffer = tf2_ros.Buffer(rclpy.duration.Duration(100.0))
                 tf_listener = tf2_ros.TransformListener(tf_buffer)
-                tf_stamped = tf_buffer.lookup_transform(self.camera_base_link, self.camera_vector_frame, rospy.Time(0), rospy.Duration(5.0))
+                tf_stamped = tf_buffer.lookup_transform(self.camera_base_link, self.camera_vector_frame, rospy.Time(0), rclpy.duration.Duration(5.0))
                 q = tf_stamped.transform.rotation
                 (roll, pitch, yaw) = tf.transformations.euler_from_quaternion([q.x, q.y, q.z, q.w])
 
@@ -459,9 +459,9 @@ class AxisPtzControlNode(Node):
 
         try:
             # The the transformation between the camera base link & the reference frame
-            tf_buffer = tf2_ros.Buffer(rospy.Duration(100.0))
+            tf_buffer = tf2_ros.Buffer(rclpy.duration.Duration(100.0))
             tf_listener = tf2_ros.TransformListener(tf_buffer)
-            tf_stamped = tf_buffer.lookup_transform(self.camera_base_link, ptz_req.frame_id, rospy.Time(0), rospy.Duration(5.0))
+            tf_stamped = tf_buffer.lookup_transform(self.camera_base_link, ptz_req.frame_id, rospy.Time(0), rclpy.duration.Duration(5.0))
 
             # we want to get the pan & tilt needed to point at the frame
             r = math.sqrt(tf_stamped.transform.translation.x**2 + tf_stamped.transform.translation.y**2 + tf_stamped.transform.translation.z**2)
@@ -518,6 +518,7 @@ def main():
     rclpy.init(args=args)
     node = AxisPtzControlNode('axis_ptz_action_server_node')
     rclpy.spin(node)
+    node.destroy()
     rclpy.shutdown()
 
 if __name__=='__main__':
