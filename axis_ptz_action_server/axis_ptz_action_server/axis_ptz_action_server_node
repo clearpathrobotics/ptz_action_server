@@ -246,7 +246,7 @@ class AxisPtzControlNode(Node):
                 if self.get_clock().now() - self.last_state_at > self.STATE_TIMEOUT:
                     timed_out = True
                 else:
-                    rospy.logdebug(f"PTZ is still moving ({feedback.pan_remaining}, {feedback.tilt_remaining}, {feedback.zoom_remaining}) to go")
+                    self.get_logger().debug(f"PTZ is still moving ({feedback.pan_remaining}, {feedback.tilt_remaining}, {feedback.zoom_remaining}) to go")
                     rate.sleep()
 
             if self.ptz_abs_srv.is_preempt_requested():
@@ -349,7 +349,7 @@ class AxisPtzControlNode(Node):
                     if self.get_clock().now() - self.last_state_at > self.STATE_TIMEOUT:
                         timed_out = True
                     else:
-                        rospy.logdebug(f"PTZ is still moving ({feedback.pan_remaining}, {feedback.tilt_remaining}, {feedback.zoom_remaining}) to go")
+                        self.get_logger().debug(f"PTZ is still moving ({feedback.pan_remaining}, {feedback.tilt_remaining}, {feedback.zoom_remaining}) to go")
                         rate.sleep()
 
                 if self.vel_srv.is_preempt_requested():
@@ -406,7 +406,7 @@ class AxisPtzControlNode(Node):
                 # The the RPY transformation between the camera base link & the reference frame
                 tf_buffer = tf2_ros.Buffer(rclpy.duration.Duration(100.0))
                 tf_listener = tf2_ros.TransformListener(tf_buffer)
-                tf_stamped = tf_buffer.lookup_transform(self.camera_base_link, self.camera_vector_frame, rospy.Time(0), rclpy.duration.Duration(5.0))
+                tf_stamped = tf_buffer.lookup_transform(self.camera_base_link, self.camera_vector_frame, rclpy.time.Time(), rclpy.duration.Duration(5.0))
                 q = tf_stamped.transform.rotation
                 (roll, pitch, yaw) = tf.transformations.euler_from_quaternion([q.x, q.y, q.z, q.w])
 
@@ -461,7 +461,7 @@ class AxisPtzControlNode(Node):
             # The the transformation between the camera base link & the reference frame
             tf_buffer = tf2_ros.Buffer(rclpy.duration.Duration(100.0))
             tf_listener = tf2_ros.TransformListener(tf_buffer)
-            tf_stamped = tf_buffer.lookup_transform(self.camera_base_link, ptz_req.frame_id, rospy.Time(0), rclpy.duration.Duration(5.0))
+            tf_stamped = tf_buffer.lookup_transform(self.camera_base_link, ptz_req.frame_id, rclpy.time.Time(), rclpy.duration.Duration(5.0))
 
             # we want to get the pan & tilt needed to point at the frame
             r = math.sqrt(tf_stamped.transform.translation.x**2 + tf_stamped.transform.translation.y**2 + tf_stamped.transform.translation.z**2)
