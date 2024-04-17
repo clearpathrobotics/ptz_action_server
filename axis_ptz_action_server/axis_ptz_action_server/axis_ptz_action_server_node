@@ -475,7 +475,7 @@ class AxisPtzControlNode(Node):
         the normal absolute PTZ action internally to move the camera to the corresponding position
         """
         # calculate the initial absolute goal as if there is no TF to apply
-        abs_goal = PtzGoal(goal_handle.request.pan,
+        abs_goal = PtzMove.Goal(goal_handle.request.pan,
                            goal_handle.request.tilt,
                            goal_handle.request.zoom
         )
@@ -520,32 +520,46 @@ class AxisPtzControlNode(Node):
             except Exception as err:
                 self.get_logger().error(f"Failed to look up transform between {self.camera_base_link} and {goal_handle.request.frame_id}: {err}")
 
-        ptz_client = actionlib.SimpleActionClient("move_ptz/position_abs", PtzAction)
+        ptz_client = ActionClient(self, PtzMove, "move_ptz/position_abs")
         ptz_client.wait_for_server()
+        def feedback_cb(feedback):
+            goal_handle.publish_feedback(PtzRelTo.Feedback(feedback.feedback))
 
-        def done_cb(state, result):
-            tf_result = PtzRelToResult(result.success)
-            if state == actionlib.GoalStatus.SUCCEEDED:
-                self.tf_ptz_abs_action.set_succeeded(tf_result)
-            elif state == actionlib.GoalStatus.PREEMPTED:
-                self.tf_ptz_abs_action.set_preempted()
-            else:
-                self.tf_ptz_abs_action.set_aborted(tf_result)
-
-        def feedback_cb(fb):
-            tf_fb = PtzRelToFeedback(fb.pan_remaining, fb.tilt_remaining, fb.zoom_remaining)
-            self.tf_ptz_abs_action.publish_feedback(tf_fb)
-
-        ptz_client.send_goal(abs_goal,
+        abs_goal_future = ptz_client.send_goal_async(abs_goal,
             feedback_cb = feedback_cb,
-            done_cb = done_cb
         )
-        ptz_client.wait_for_result()
+
+        rclpy.spin_until_future_complete(self, abs_goal_future)
+        abs_goal_handle = abs_goal_future.result()
+        # Check if goal accepted (it always is here)
+        get_result_future = abs_goal_handle.get_result_async()
+
+        while not get_result_future.done() and not goal_handle.is_cancel_requested and goal_handle.is_active:
+            rclpy.spin_once(self,timeout_sec=1)
+        if not goal_handle.is_active:
+            self.get_logger().info('PTZ action aborted')
+            return PtzRelTo.Result()
+        if goal_handle.is_cancel_requested:
+            goal_handle.canceled()
+            self.get_logger().info('PTZ action canceled')
+            return PtzRelTo.Result()
+
+        result = get_result_future.result().result
+        status = get_result_future.result().status
+        if status == GoalStatus.STATUS_SUCCEEDED:
+            goal_handle.succeed()
+            return PtzRelTo.Result(result)
+        elif status == GoalStatus.STATUS_ABORTED:
+            goal_handle.abort()
+            return PtzRelTo.Result(result)
+        else:
+            goal_handle.succeed()
+            return PtzRelTo.Result(result)
 
     def frame_ptz_actionHandler(self, goal_handle):
         """Pan & tilt the camera to point to a specific frame in the TF tree
         """
-        abs_goal = PtzGoal()
+        abs_goal = PtzMove.Goal()
         abs_goal.zoom = goal_handle.request.zoom
 
         try:
@@ -575,34 +589,50 @@ class AxisPtzControlNode(Node):
             while abs_goal.tilt > math.pi/2:
                 abs_goal.tilt -= math.pi
 
-            ptz_client = actionlib.SimpleActionClient("move_ptz/position_abs", PtzAction)
+            ptz_client = ActionClient(self, PtzMove, "move_ptz/position_abs")
             ptz_client.wait_for_server()
+            def feedback_cb(feedback):
+                goal_handle.publish_feedback(PtzFrame.Feedback(feedback.feedback))
 
-            def done_cb(state, result):
-                tf_result = PtzFrameResult(result.success)
-                if state == actionlib.GoalStatus.SUCCEEDED:
-                    self.frame_ptz_action.set_succeeded(tf_result)
-                elif state == actionlib.GoalStatus.PREEMPTED:
-                    self.frame_ptz_action.set_preempted()
-                else:
-                    self.frame_ptz_action.set_aborted(tf_result)
-
-            def feedback_cb(fb):
-                tf_fb = PtzFrameFeedback(fb.pan_remaining, fb.tilt_remaining, fb.zoom_remaining)
-                self.frame_ptz_action.publish_feedback(tf_fb)
-
-            ptz_client.send_goal(abs_goal,
+            abs_goal_future = ptz_client.send_goal_async(abs_goal,
                 feedback_cb = feedback_cb,
-                done_cb = done_cb
             )
-            ptz_client.wait_for_result()
+
+            rclpy.spin_until_future_complete(self, abs_goal_future)
+            abs_goal_handle = abs_goal_future.result()
+            # Check if goal accepted (it always is here)
+            get_result_future = abs_goal_handle.get_result_async()
+
+            while not get_result_future.done() and not goal_handle.is_cancel_requested and goal_handle.is_active:
+                rclpy.spin_once(self,timeout_sec=1)
+            if not goal_handle.is_active:
+                self.get_logger().info('PTZ action aborted')
+                return PtzFrame.Result()
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                self.get_logger().info('PTZ action canceled')
+                return PtzFrame.Result()
+
+            result = get_result_future.result().result
+            status = get_result_future.result().status
+            if status == GoalStatus.STATUS_SUCCEEDED:
+                goal_handle.succeed()
+                return PtzFrame.Result(result)
+            elif status == GoalStatus.STATUS_ABORTED:
+                goal_handle.abort()
+                return PtzFrame.Result(result)
+            else:
+                goal_handle.succeed()
+                return PtzFrame.Result(result)
 
         except Exception as err:
             err_msg = f"Failed to look up transform between {self.camera_base_link} and {goal_handle.request.frame_id}: {err}"
             self.get_logger().error(err_msg)
-            result = PtzFrameResult()
+            result = PtzFrame.Result()
             result.success = False
-            self.frame_ptz_action.set_aborted(result, err_msg)
+            result.message = err_msg
+            goal_handle.abort()
+            return result
 
 
 def main(args=None):
