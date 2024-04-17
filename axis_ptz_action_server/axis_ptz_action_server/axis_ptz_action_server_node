@@ -259,7 +259,7 @@ class AxisPtzControlNode(Node):
 
         @param goal_handle  The PtzGoal object to process
         """
-        if self.last_axis_state == None:
+        if self.last_axis_state is None:
             # We have never contacted the camera; block until we hear _something_
             self.get_logger().warning('Still waiting for initial state from the camera. Cannot move yet')
             goal_handle.abort()
@@ -279,9 +279,9 @@ class AxisPtzControlNode(Node):
 
         else:
             # The camera is alive and ready to move
-            self.goal_pan = self.clamp(goal_handle.pan, self.min_pan, self.max_pan, 'pan')
-            self.goal_tilt =self.clamp(goal_handle.tilt, self.min_tilt, self.max_tilt, 'tilt')
-            self.goal_zoom = self.clamp(goal_handle.zoom, self.min_logical_zoom, self.max_logical_zoom, 'zoom')
+            self.goal_pan = self.clamp(goal_handle.request.pan, self.min_pan, self.max_pan, 'pan')
+            self.goal_tilt =self.clamp(goal_handle.request.tilt, self.min_tilt, self.max_tilt, 'tilt')
+            self.goal_zoom = self.clamp(goal_handle.request.zoom, self.min_logical_zoom, self.max_logical_zoom, 'zoom')
 
             # send the command to the camera
             self.is_moving = True
@@ -341,15 +341,15 @@ class AxisPtzControlNode(Node):
 
         Converts the relative pan/tilt/zoom to absolute positions and uses the position_abs action
         """
-        abs_goal = PtzMove.Goal(self.ptz_state.pan + goal_handle.pan,
-                           self.ptz_state.tilt + goal_handle.tilt,
-                           self.ptz_state.zoom + goal_handle.zoom
+        abs_goal = PtzMove.Goal(self.ptz_state.pan + goal_handle.request.pan,
+                           self.ptz_state.tilt + goal_handle.request.tilt,
+                           self.ptz_state.zoom + goal_handle.request.zoom
         )
 
         ptz_client = ActionClient(self, PtzMove, "move_ptz/position_abs")
         ptz_client.wait_for_server()
         def feedback_cb(feedback):
-            self.ptz_rel_srv.publish_feedback(PtzMove.Feedback(feedback.feedback))
+            goal_handle.publish_feedback(PtzMove.Feedback(feedback.feedback))
 
         abs_goal_future = ptz_client.send_goal_async(abs_goal,
             feedback_cb = feedback_cb,
@@ -390,33 +390,28 @@ class AxisPtzControlNode(Node):
 
         @param goal_handle  The PtzGoal object to process
         """
-        if self.last_axis_state == None:
+        if self.last_axis_state is None:
             # We have never contacted the camera; block until we hear _something_
             self.get_logger().warning('Still waiting for initial state from the camera. Cannot move yet')
-            ptz_resp = PtzResult()
+            goal_handle.abort()
+            ptz_resp = PtzMove.Result()
             ptz_resp.success = False
-            self.vel_srv.set_aborted(ptz_resp, 'Still waiting for initial state from the camera. Cannot move yet')
+            ptz_resp.message = 'Still waiting for initial state from the camera. Cannot move yet'
+            return ptz_resp
         elif self.get_clock().now() - self.last_state_at > self.STATE_TIMEOUT:
             # We haven't heard from the camera in a while; block until the camera updates its status again
             self.get_logger().warning("Status of Axis camera is stale. Waiting for the camera to come back online")
-            ptz_resp = PtzResult()
+            goal_handle.abort()
+            ptz_resp = PtzMove.Result()
             ptz_resp.success = False
-            self.vel_srv.set_aborted(ptz_resp, "Status of Axis camera is stale; waiting for camera to publish its state again")
-        elif self.ptz_state.mode == PtzState.MODE_POSITION:
-            # We're processiung a position command; it must finish first
-            self.get_logger().warning("Camera is moving under position control. Wait for that action to finish before using velocityu control")
-            ptz_resp = PtzResult()
-            ptz_resp.success = False
-            self.vel_srv.set_aborted(ptz_resp, "Camera is moving under position control")
-        elif self.ptz_state.mode == PtzState.MODE_VELOCITY and goal_handle.pan == 0 and goal_handle.tilt == 0 and goal_handle.zoom == 0:
-            self.get_logger().info("Stopping camera")
-            self.vel_srv.set_preempted()
+            ptz_resp.message = "Status of Axis camera is stale. Waiting for the camera to come back online"
+            return ptz_resp
         else:
             # The camera is alive and ready to move
             cmd = Ptz()
-            cmd.pan = goal_handle.pan
-            cmd.tilt = goal_handle.tilt
-            cmd.zoom = goal_handle.zoom
+            cmd.pan = goal_handle.request.pan
+            cmd.tilt = goal_handle.request.tilt
+            cmd.zoom = goal_handle.request.zoom
             self.cmd_vel_pub.publish(cmd)
             if cmd.pan != 0 or cmd.tilt != 0 or cmd.zoom != 0:
                 self.is_moving = True
@@ -424,12 +419,12 @@ class AxisPtzControlNode(Node):
 
                 rate = self.create_rate(2)
                 timed_out = False
-                while self.is_moving and not self.vel_srv.is_preempt_requested() and not timed_out:
-                    feedback = PtzFeedback()
+                while self.is_moving and goal_handle.is_active and not goal_handle.is_cancel_requested and not timed_out:
+                    feedback = PtzMove.Feedback()
                     feedback.zoom_remaining = math.copysign(1, goal_handle.zoom)
                     feedback.pan_remaining = math.copysign(1, goal_handle.pan)
                     feedback.tilt_remaining = math.copysign(1, goal_handle.tilt)
-                    self.vel_srv.publish_feedback(feedback)
+                    self.vel_action.publish_feedback(feedback)
 
                     if self.get_clock().now() - self.last_state_at > self.STATE_TIMEOUT:
                         timed_out = True
@@ -437,30 +432,41 @@ class AxisPtzControlNode(Node):
                         self.get_logger().debug(f"PTZ is still moving ({feedback.pan_remaining}, {feedback.tilt_remaining}, {feedback.zoom_remaining}) to go")
                         rate.sleep()
 
-                if self.vel_srv.is_preempt_requested():
-                    self.get_logger().warning("Velocity action preempted")
+                if not goal_handle.is_active:
+                    self.get_logger().info('Velocity action aborted')
                     self.is_moving = False
-                    self.vel_srv.set_preempted()
+                    self.ptz_state.mode = PtzState.MODE_IDLE
+                    return PtzMove.Result()
+                elif goal_handle.is_cancel_requested:
+                    goal_handle.canceled()
+                    self.is_moving = False
+                    self.vel_state = PtzState.MODE_IDLE
+                    self.get_logger().info('Velocity action canceled')
+                    return PtzMove.Result()
                 elif timed_out:
                     self.get_logger().warning("Timed out waiting for axis camera state")
                     self.is_moving = False
-                    ptz_resp = PtzResult()
+                    ptz_resp = PtzMove.Result()
                     ptz_resp.success = False
                     self.vel_state = PtzState.MODE_IDLE
-                    self.vel_srv.set_aborted(ptz_resp, "Timed out waiting for axis camera state; did the camera go offline?")
+                    ptz_resp.message = "Timed out waiting for axis camera state; did the camera go offline?"
+                    goal_handle.abort()
+                    return ptz_resp
                 else:
                     self.get_logger().debug("Velocity action completed successfully")
-                    ptz_resp = PtzResult()
+                    ptz_resp = PtzMove.Result()
                     ptz_resp.success = True
                     self.ptz_state.mode = PtzState.MODE_IDLE
-                    self.vel_srv.set_succeeded(ptz_resp)
+                    goal_handle.succeed()
+                    return ptz_resp
             else:
                 self.get_logger().debug("Velocity action completed successfully")
-                ptz_resp = PtzResult()
+                ptz_resp = PtzMove.Result()
                 ptz_resp.success = True
                 self.is_moving = False
                 self.ptz_state.mode = PtzState.MODE_IDLE
-                self.vel_srv.set_succeeded(ptz_resp)
+                goal_handle.succeed()
+                return ptz_resp
 
     def tf_ptz_abs_actionHandler(self, goal_handle):
         """Handler for a TF-aware absolute PTZ action
@@ -469,18 +475,18 @@ class AxisPtzControlNode(Node):
         the normal absolute PTZ action internally to move the camera to the corresponding position
         """
         # calculate the initial absolute goal as if there is no TF to apply
-        abs_goal = PtzGoal(goal_handle.pan,
-                           goal_handle.tilt,
-                           goal_handle.zoom
+        abs_goal = PtzGoal(goal_handle.request.pan,
+                           goal_handle.request.tilt,
+                           goal_handle.request.zoom
         )
 
-        if goal_handle.frame_id:
+        if goal_handle.request.frame_id:
             try:
                 # add a temporary frame to represent the desired camera vector
-                camera_vector_q = tf.transformations.quaternion_from_euler(0, -goal_handle.tilt, goal_handle.pan)
+                camera_vector_q = tf.transformations.quaternion_from_euler(0, -goal_handle.request.tilt, goal_handle.request.pan)
                 static_tf = TransformStamped()
                 static_tf.header.stamp = self.get_clock().now()
-                static_tf.header.frame_id = goal_handle.frame_id
+                static_tf.header.frame_id = goal_handle.request.frame_id
                 static_tf.child_frame_id = self.camera_vector_frame
                 static_tf.transform.rotation.x = camera_vector_q[0]
                 static_tf.transform.rotation.y = camera_vector_q[1]
@@ -512,7 +518,7 @@ class AxisPtzControlNode(Node):
                     abs_goal.tilt -= math.pi
 
             except Exception as err:
-                self.get_logger().error(f"Failed to look up transform between {self.camera_base_link} and {goal_handle.frame_id}: {err}")
+                self.get_logger().error(f"Failed to look up transform between {self.camera_base_link} and {goal_handle.request.frame_id}: {err}")
 
         ptz_client = actionlib.SimpleActionClient("move_ptz/position_abs", PtzAction)
         ptz_client.wait_for_server()
@@ -520,15 +526,15 @@ class AxisPtzControlNode(Node):
         def done_cb(state, result):
             tf_result = PtzRelToResult(result.success)
             if state == actionlib.GoalStatus.SUCCEEDED:
-                self.tf_ptz_abs_srv.set_succeeded(tf_result)
+                self.tf_ptz_abs_action.set_succeeded(tf_result)
             elif state == actionlib.GoalStatus.PREEMPTED:
-                self.tf_ptz_abs_srv.set_preempted()
+                self.tf_ptz_abs_action.set_preempted()
             else:
-                self.tf_ptz_abs_srv.set_aborted(tf_result)
+                self.tf_ptz_abs_action.set_aborted(tf_result)
 
         def feedback_cb(fb):
             tf_fb = PtzRelToFeedback(fb.pan_remaining, fb.tilt_remaining, fb.zoom_remaining)
-            self.tf_ptz_abs_srv.publish_feedback(tf_fb)
+            self.tf_ptz_abs_action.publish_feedback(tf_fb)
 
         ptz_client.send_goal(abs_goal,
             feedback_cb = feedback_cb,
@@ -540,13 +546,13 @@ class AxisPtzControlNode(Node):
         """Pan & tilt the camera to point to a specific frame in the TF tree
         """
         abs_goal = PtzGoal()
-        abs_goal.zoom = goal_handle.zoom
+        abs_goal.zoom = goal_handle.request.zoom
 
         try:
             # The the transformation between the camera base link & the reference frame
             tf_buffer = tf2_ros.Buffer(rclpy.duration.Duration(100.0))
             tf_listener = tf2_ros.TransformListener(tf_buffer)
-            tf_stamped = tf_buffer.lookup_transform(self.camera_base_link, goal_handle.frame_id, rclpy.time.Time(), rclpy.duration.Duration(5.0))
+            tf_stamped = tf_buffer.lookup_transform(self.camera_base_link, goal_handle.request.frame_id, rclpy.time.Time(), rclpy.duration.Duration(5.0))
 
             # we want to get the pan & tilt needed to point at the frame
             r = math.sqrt(tf_stamped.transform.translation.x**2 + tf_stamped.transform.translation.y**2 + tf_stamped.transform.translation.z**2)
@@ -575,15 +581,15 @@ class AxisPtzControlNode(Node):
             def done_cb(state, result):
                 tf_result = PtzFrameResult(result.success)
                 if state == actionlib.GoalStatus.SUCCEEDED:
-                    self.frame_ptz_srv.set_succeeded(tf_result)
+                    self.frame_ptz_action.set_succeeded(tf_result)
                 elif state == actionlib.GoalStatus.PREEMPTED:
-                    self.frame_ptz_srv.set_preempted()
+                    self.frame_ptz_action.set_preempted()
                 else:
-                    self.frame_ptz_srv.set_aborted(tf_result)
+                    self.frame_ptz_action.set_aborted(tf_result)
 
             def feedback_cb(fb):
                 tf_fb = PtzFrameFeedback(fb.pan_remaining, fb.tilt_remaining, fb.zoom_remaining)
-                self.frame_ptz_srv.publish_feedback(tf_fb)
+                self.frame_ptz_action.publish_feedback(tf_fb)
 
             ptz_client.send_goal(abs_goal,
                 feedback_cb = feedback_cb,
@@ -592,11 +598,11 @@ class AxisPtzControlNode(Node):
             ptz_client.wait_for_result()
 
         except Exception as err:
-            err_msg = f"Failed to look up transform between {self.camera_base_link} and {goal_handle.frame_id}: {err}"
+            err_msg = f"Failed to look up transform between {self.camera_base_link} and {goal_handle.request.frame_id}: {err}"
             self.get_logger().error(err_msg)
             result = PtzFrameResult()
             result.success = False
-            self.frame_ptz_srv.set_aborted(result, err_msg)
+            self.frame_ptz_action.set_aborted(result, err_msg)
 
 
 def main(args=None):
