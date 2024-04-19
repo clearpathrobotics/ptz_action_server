@@ -20,8 +20,8 @@ setup(
     zip_safe=True,
     maintainer='Chris Iverach-Brereton',
     maintainer_email='civerachb@clearpathrobotics.com',
-    description='My awesome package.',
-    license='TODO',
+    description='PTZ control services for Axix PTZ cameras',
+    license='BSD',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [

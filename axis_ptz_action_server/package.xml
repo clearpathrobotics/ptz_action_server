@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>axis_ptz_action_server</name>
-  <version>0.1.9</version>
+  <version>0.2.0</version>
   <description>PTZ control services for Axix PTZ cameras</description>
 
   <maintainer email="civerachb@clearpathrobotics.com">Chris Iverach-Brereton</maintainer>
@@ -9,12 +9,9 @@
 
   <depend>ptz_action_server_msgs</depend>
   <depend>sensor_msgs</depend>
-  <depend>std_msgs</depend>
-
-  <exec_depend>actionlib</exec_depend>
+  <depend>python3-transforms3d</depend>
+  
   <exec_depend>axis_camera</exec_depend>
-  <exec_depend>tf2</exec_depend>
-  <exec_depend>tf2_geometry_msgs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
 
   <exec_depend>message_runtime</exec_depend>

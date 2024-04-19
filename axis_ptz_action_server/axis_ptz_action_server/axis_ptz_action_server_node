@@ -8,8 +8,7 @@ from rclpy.node import Node
 
 import math
 import tf2_ros
-import tf2_geometry_msgs
-import tf.transformations
+import transforms3d
 import threading
 import uuid
 
@@ -483,15 +482,15 @@ class AxisPtzControlNode(Node):
         if goal_handle.request.frame_id:
             try:
                 # add a temporary frame to represent the desired camera vector
-                camera_vector_q = tf.transformations.quaternion_from_euler(0, -goal_handle.request.tilt, goal_handle.request.pan)
+                camera_vector_q = transforms3d.euler.euler2quat(0, -goal_handle.request.tilt, goal_handle.request.pan)
                 static_tf = TransformStamped()
                 static_tf.header.stamp = self.get_clock().now()
                 static_tf.header.frame_id = goal_handle.request.frame_id
                 static_tf.child_frame_id = self.camera_vector_frame
-                static_tf.transform.rotation.x = camera_vector_q[0]
-                static_tf.transform.rotation.y = camera_vector_q[1]
-                static_tf.transform.rotation.z = camera_vector_q[2]
-                static_tf.transform.rotation.w = camera_vector_q[3]
+                static_tf.transform.rotation.x = camera_vector_q[1]
+                static_tf.transform.rotation.y = camera_vector_q[2]
+                static_tf.transform.rotation.z = camera_vector_q[3]
+                static_tf.transform.rotation.w = camera_vector_q[0]
                 self.tf_broadcaster.sendTransform(static_tf)
 
                 # The the RPY transformation between the camera base link & the reference frame
@@ -499,7 +498,7 @@ class AxisPtzControlNode(Node):
                 tf_listener = tf2_ros.TransformListener(tf_buffer)
                 tf_stamped = tf_buffer.lookup_transform(self.camera_base_link, self.camera_vector_frame, rclpy.time.Time(), rclpy.duration.Duration(5.0))
                 q = tf_stamped.transform.rotation
-                (roll, pitch, yaw) = tf.transformations.euler_from_quaternion([q.x, q.y, q.z, q.w])
+                (roll, pitch, yaw) = transforms3d.euler.quat2euler([q.w, q.x, q.y, q.z])
 
                 # yaw & pitch are right-handed, but pan & tilt are left-handed, so invert them
                 abs_goal.pan = -yaw
