@@ -9,8 +9,8 @@ from rclpy.node import Node
 import math
 import tf2_ros
 import transforms3d
-import threading
 import uuid
+from threading import Lock, Thread
 
 from action_msgs.msg import GoalStatus
 from axis_msgs.msg import Ptz
@@ -18,7 +18,6 @@ from geometry_msgs.msg import TransformStamped
 from ptz_action_server_msgs.action import PtzMove, PtzFrame, PtzRelTo
 from ptz_action_server_msgs.msg import PtzState
 from sensor_msgs.msg import JointState
-from threading import Lock, Thread
 
 from math import pi
 from math import degrees as rad2deg
@@ -88,7 +87,7 @@ class AxisPtzControlNode(Node):
         # Action Servers
 
         self._goal_handle = None
-        self._goal_lock = threading.Lock()
+        self._goal_lock = Lock()
         self.ptz_abs_action = ActionServer(
             self,
             PtzMove,
@@ -151,7 +150,7 @@ class AxisPtzControlNode(Node):
         """
         self.cmd_pos_pub = self.create_publisher(Ptz, self.cmd_pos_topic)
         self.cmd_vel_pub = self.create_publisher(Ptz, self.cmd_vel_topic)
-        self.status_sub = self.create_subscription(Ptz, self.state_callback)
+        self.status_sub = self.create_subscription(Ptz, self.status_topic, self.state_callback)
         self.status_pub = self.create_publisher(PtzState, f'{self.act_ns}/ptz_state')
 
         if self.publish_joint_states:
