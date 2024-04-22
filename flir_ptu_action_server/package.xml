@@ -9,13 +9,12 @@
 
   <buildtool_depend>catkin</buildtool_depend>
 
-  <depend>actionlib</depend>
   <depend>flir_ptu_driver</depend>
   <depend>ptz_action_server_msgs</depend>
-  <depend>rospy</depend>
+  <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
-  <depend>std_msgs</depend>
 
   <export>
+    <build_type>ament_python</build_type>
   </export>
 </package>
