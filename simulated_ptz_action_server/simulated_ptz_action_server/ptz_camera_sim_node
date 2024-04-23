@@ -8,7 +8,6 @@ from rclpy.executors import MultiThreadedExecutor
 
 import math
 import tf2_ros
-import tf2_geometry_msgs
 from threading import Lock
 import transforms3d
 import uuid
@@ -519,7 +518,8 @@ class SimulatedPtzCameraNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = SimulatedPtzCameraNode('simulated_ptz_camera_controller')
-    rclpy.spin(node)
+    executor = MultiThreadedExecutor()
+    rclpy.spin(node, executor=executor)
     node.destroy_node()
     rclpy.shutdown()
 
