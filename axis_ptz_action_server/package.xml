@@ -8,14 +8,12 @@
   <license>BSD</license>
 
   <depend>ptz_action_server_msgs</depend>
-  <depend>sensor_msgs</depend>
+  <depend>rclpy</depend>
   <depend>python3-transforms3d</depend>
   
-  <exec_depend>axis_camera</exec_depend>
-  <exec_depend>tf2_ros</exec_depend>
-
-  <exec_depend>message_runtime</exec_depend>
-  <exec_depend>rclpy</exec_depend>
+  <depend>axis_camera</depend>
+  <depend>sensor_msgs</depend>
+  <depend>tf2_ros</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

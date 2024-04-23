@@ -68,7 +68,7 @@ class SimulatedPtzCameraNode(Node):
         self.ptz_abs_action = ActionServer(
             self,
             PtzMove,
-            f'{self.act_ns}/move_ptz/position_abs',
+            '/move_ptz/position_abs',
             execute_callback=self.ptz_abs_actionHandler,
             callback_group=ReentrantCallbackGroup(),
             cancel_callback=self.cancel_callback,
@@ -76,7 +76,7 @@ class SimulatedPtzCameraNode(Node):
         self.ptz_rel_action = ActionServer(
             self,
             PtzMove,
-            f'{self.act_ns}/move_ptz/position_rel',
+            '/move_ptz/position_rel',
             execute_callback=self.ptz_rel_actionHandler,
             callback_group=ReentrantCallbackGroup(),
             cancel_callback=self.cancel_callback,
@@ -84,7 +84,7 @@ class SimulatedPtzCameraNode(Node):
         self.tf_ptz_abs_action = ActionServer(
             self,
             PtzRelTo,
-            f'{self.act_ns}/move_ptz/position_abs_tf',
+            '/move_ptz/position_abs_tf',
             execute_callback=self.tf_ptz_abs_actionHandler,
             callback_group=ReentrantCallbackGroup(),
             cancel_callback=self.cancel_callback,
