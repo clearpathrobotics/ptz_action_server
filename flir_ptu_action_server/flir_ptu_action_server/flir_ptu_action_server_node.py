@@ -26,18 +26,18 @@ class FlirD46PtzControlNode(Node):
 
     def __init__(self, name):
         super().__init__(name)
-        self.cmd_topic = self.declare_parameter('~cmd_topic', '/ptu/cmd').value
-        self.act_ns = self.declare_parameter('~act_ns', '/ptu').value
-        self.pan_joint = self.declare_parameter('~pan_joint', 'ptu_pan').value
-        self.tilt_joint = self.declare_parameter('~tilt_joint', 'ptu_tilt').value
+        self.cmd_topic = self.declare_parameter('cmd_topic', '/ptu/cmd').value
+        self.act_ns = self.declare_parameter('act_ns', '/ptu').value
+        self.pan_joint = self.declare_parameter('pan_joint', 'ptu_pan').value
+        self.tilt_joint = self.declare_parameter('tilt_joint', 'ptu_tilt').value
 
-        self.MIN_PAN = float(self.declare_parameter('~min_pan', -2.356194490192345).value)
-        self.MAX_PAN = float(self.declare_parameter('~max_pan', 2.356194490192345).value)
-        self.MIN_TILT = float(self.declare_parameter('~min_tilt', -0.7853981633974483).value)
+        self.MIN_PAN = float(self.declare_parameter('min_pan', -2.356194490192345).value)
+        self.MAX_PAN = float(self.declare_parameter('max_pan', 2.356194490192345).value)
+        self.MIN_TILT = float(self.declare_parameter('min_tilt', -0.7853981633974483).value)
         self.MAX_TILT = float(self.declare_parameter('~max_tilt', 1.5707963267948966).value)
 
-        self.INVERT_PAN = bool(self.declare_parameter('~invert_pan', False).value)
-        self.INVERT_TILT = bool(self.declare_parameter('~invert_tilt', False).value)
+        self.INVERT_PAN = bool(self.declare_parameter('invert_pan', False).value)
+        self.INVERT_TILT = bool(self.declare_parameter('invert_tilt', False).value)
 
         # allow 1 degree of error when tracking the position feedback
         self.position_tolerance = 1 * pi / 180.0

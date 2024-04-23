@@ -31,31 +31,31 @@ class AxisPtzControlNode(Node):
 
     def __init__(self, name):
         super().__init__(name)
-        self.cmd_ns = self.declare_parameter('~cmd_ns', '/axis/cmd').value
+        self.cmd_ns = self.declare_parameter('cmd_ns', '/axis/cmd').value
         if self.cmd_ns[0] != '/':
             self.cmd_ns = f"/{self.cmd_ns}"
         self.cmd_pos_topic = f'{self.cmd_ns}/position'
         self.cmd_vel_topic = f'{self.cmd_ns}/velocity'
-        self.status_topic = self.declare_parameter('~status_topic', '/axis/state/position').value
-        self.act_ns = self.declare_parameter('~act_ns', '/axis').value
-        self.invert_tilt = self.declare_parameter('~invert_tilt', False).value
-        self.invert_pan = self.declare_parameter('~invert_pan', False).value
+        self.status_topic = self.declare_parameter('status_topic', '/axis/state/position').value
+        self.act_ns = self.declare_parameter('act_ns', '/axis').value
+        self.invert_tilt = self.declare_parameter('invert_tilt', False).value
+        self.invert_pan = self.declare_parameter('invert_pan', False).value
 
-        self.min_pan = self.declare_parameter("~min_pan", deg2rad(-170)).value
-        self.max_pan = self.declare_parameter("~max_pan", deg2rad(170)).value
-        self.min_tilt = self.declare_parameter("~min_tilt", 0).value
-        self.max_tilt = self.declare_parameter("~max_tilt", deg2rad(90)).value
-        self.min_hw_zoom = self.declare_parameter("~min_zoom", 1).value
-        self.max_hw_zoom = self.declare_parameter("~max_zoom", 9999).value
+        self.min_pan = self.declare_parameter("min_pan", deg2rad(-170)).value
+        self.max_pan = self.declare_parameter("max_pan", deg2rad(170)).value
+        self.min_tilt = self.declare_parameter("min_tilt", 0).value
+        self.max_tilt = self.declare_parameter("max_tilt", deg2rad(90)).value
+        self.min_hw_zoom = self.declare_parameter("min_zoom", 1).value
+        self.max_hw_zoom = self.declare_parameter("max_zoom", 9999).value
 
-        self.camera_base_link = self.declare_parameter("~camera_base_link", "base_link").value
+        self.camera_base_link = self.declare_parameter("camera_base_link", "base_link").value
 
-        self.publish_joint_states = self.declare_parameter("~publish_joint_states", True).value
-        self.pan_joint = self.declare_parameter("~pan_joint", "pan_joint").value
-        self.tilt_joint = self.declare_parameter("~tilt_joint", "tilt_joint").value
+        self.publish_joint_states = self.declare_parameter("publish_joint_states", True).value
+        self.pan_joint = self.declare_parameter("pan_joint", "pan_joint").value
+        self.tilt_joint = self.declare_parameter("tilt_joint", "tilt_joint").value
 
-        self.min_logical_zoom = self.declare_parameter("~min_logical_zoom", 1).value
-        self.max_logical_zoom = self.declare_parameter("~max_logical_zoom", 24).value
+        self.min_logical_zoom = self.declare_parameter("min_logical_zoom", 1.0).value
+        self.max_logical_zoom = self.declare_parameter("max_logical_zoom", 24.0).value
 
         # allow 1 degree of error when tracking the position feedback
         # this is a little coarse, but the camera isn't a high-precision piece of kit anyway

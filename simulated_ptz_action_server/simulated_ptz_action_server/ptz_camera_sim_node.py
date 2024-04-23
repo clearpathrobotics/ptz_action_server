@@ -36,19 +36,19 @@ class SimulatedPtzCameraNode(Node):
     def __init__(self, name):
         super().__init__(name)
         self.pan_limits = [
-            self.declare_parameter('~min_pan', -math.pi).value,
-            self.declare_parameter('~max_pan', math.pi).value
+            self.declare_parameter('min_pan', -math.pi).value,
+            self.declare_parameter('max_pan', math.pi).value
         ]
         self.tilt_limits = [
-            self.declare_parameter('~min_tilt', -math.pi/2).value,
-            self.declare_parameter('~max_tilt', math.pi/2).value
+            self.declare_parameter('min_tilt', -math.pi/2).value,
+            self.declare_parameter('max_tilt', math.pi/2).value
         ]
         self.zoom_limits = [
-            self.declare_parameter('~min_logical_zoom', 1).value,
-            self.declare_parameter('~max_logical_zoom', 5).value
+            self.declare_parameter('min_logical_zoom', 1.0).value,
+            self.declare_parameter('max_logical_zoom', 5.0).value
         ]
 
-        self.camera_base_link = self.declare_parameter("~camera_base_link", "base_link").value
+        self.camera_base_link = self.declare_parameter("camera_base_link", "base_link").value
 
         self.current_pan = 0.0
         self.current_tilt = 0.0
@@ -110,7 +110,7 @@ class SimulatedPtzCameraNode(Node):
         self.pan_cmd = self.create_publisher(Float64, '/pan_position_controller/command', 10)
         self.tilt_cmd = self.create_publisher(Float64, '/tilt_position_controller/command', 10)
 
-        self.tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
+        self.tf_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
         self.camera_vector_frame = f"camera_vector_frame_{str(uuid.uuid1()).replace('-', '_')}"
 
         # spin and publish the ptz status at 10Hz
@@ -199,9 +199,9 @@ class SimulatedPtzCameraNode(Node):
         elif self.current_zoom < goal_zoom:
             delta_zoom = self.ZOOM_RATE
 
-        msg = Float64(goal_pan)
+        msg = Float64(data=goal_pan)
         self.pan_cmd.publish(msg)
-        msg = Float64(goal_tilt)
+        msg = Float64(data=goal_tilt)
         self.tilt_cmd.publish(msg)
 
         rate = self.create_rate(10)
