@@ -102,13 +102,13 @@ class SimulatedPtzCameraNode(Node):
     def run(self):
         """Start the action server, begin publishing the joint states
         """
-        self.position_sub = self.create_subscription(JointState, '/joint_states', self.joint_state_callback)
-        self.img_sub = self.create_subscription(Image, 'image_raw_nozoom', self.image_callback)
-        self.img_pub = self.create_publisher(Image, 'image_raw')
-        self.state_pub = self.create_publisher(PtzState, 'ptz_state')
+        self.position_sub = self.create_subscription(JointState, '/joint_states', self.joint_state_callback, 10)
+        self.img_sub = self.create_subscription(Image, 'image_raw_nozoom', self.image_callback, 10)
+        self.img_pub = self.create_publisher(Image, 'image_raw', 10)
+        self.state_pub = self.create_publisher(PtzState, 'ptz_state', 10)
 
-        self.pan_cmd = self.create_publisher(Float64, '/pan_position_controller/command')
-        self.tilt_cmd = self.create_publisher(Float64, '/tilt_position_controller/command')
+        self.pan_cmd = self.create_publisher(Float64, '/pan_position_controller/command', 10)
+        self.tilt_cmd = self.create_publisher(Float64, '/tilt_position_controller/command', 10)
 
         self.tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
         self.camera_vector_frame = f"camera_vector_frame_{str(uuid.uuid1()).replace('-', '_')}"

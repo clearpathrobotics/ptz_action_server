@@ -148,13 +148,13 @@ class AxisPtzControlNode(Node):
     def start(self):
         """Starts the subscribers, publishers, and service handlers
         """
-        self.cmd_pos_pub = self.create_publisher(Ptz, self.cmd_pos_topic)
-        self.cmd_vel_pub = self.create_publisher(Ptz, self.cmd_vel_topic)
-        self.status_sub = self.create_subscription(Ptz, self.status_topic, self.state_callback)
-        self.status_pub = self.create_publisher(PtzState, f'{self.act_ns}/ptz_state')
+        self.cmd_pos_pub = self.create_publisher(Ptz, self.cmd_pos_topic, 10)
+        self.cmd_vel_pub = self.create_publisher(Ptz, self.cmd_vel_topic, 10)
+        self.status_sub = self.create_subscription(Ptz, self.status_topic, self.state_callback, 10)
+        self.status_pub = self.create_publisher(PtzState, f'{self.act_ns}/ptz_state', 10)
 
         if self.publish_joint_states:
-            self.joint_state_pub = self.create_publisher(JointState, "/joint_states")
+            self.joint_state_pub = self.create_publisher(JointState, "/joint_states", 10)
             self.js_thread = Thread(target=self.joint_state_pub_thread)
             self.js_thread.start()
 

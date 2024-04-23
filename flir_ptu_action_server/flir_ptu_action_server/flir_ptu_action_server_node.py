@@ -77,9 +77,9 @@ class FlirD46PtzControlNode(Node):
     def start(self):
         """Starts the subscribers, publishers, and service handlers
         """
-        self.cmd_pub = self.create_publisher(JointState, self.cmd_topic)
-        self.joint_state_sub = self.create_subscription(JointState, '/joint_states', self.joint_state_callback)
-        self.status_pub = self.create_publisher(PtzState, f'{self.act_ns}/ptz_state')
+        self.cmd_pub = self.create_publisher(JointState, self.cmd_topic, 10)
+        self.joint_state_sub = self.create_subscription(JointState, '/joint_states', self.joint_state_callback, 10)
+        self.status_pub = self.create_publisher(PtzState, f'{self.act_ns}/ptz_state', 10)
         self.ptz_abs_srv.start()
         self.ptz_rel_srv.start()
 
