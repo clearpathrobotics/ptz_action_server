@@ -19,8 +19,6 @@ from ptz_action_server_msgs.action import PtzMove, PtzFrame, PtzRelTo
 from ptz_action_server_msgs.msg import PtzState
 from sensor_msgs.msg import JointState
 
-from math import pi
-from math import degrees as rad2deg
 from math import radians as deg2rad
 
 
@@ -87,7 +85,9 @@ class AxisPtzControlNode(Node):
         # Action Servers
 
         self._goal_handle = None
+        self._goal_handle_ind = None
         self._goal_lock = Lock()
+        self._goal_lock_ind = Lock()
         self.ptz_abs_action = ActionServer(
             self,
             PtzMove,
@@ -95,7 +95,7 @@ class AxisPtzControlNode(Node):
             execute_callback=self.ptz_abs_actionHandler,
             callback_group=ReentrantCallbackGroup(),
             cancel_callback=self.cancel_callback,
-            handle_accepted_callback=self.handle_accepted_callback)
+            handle_accepted_callback=self.handle_accepted_callback_direct)
         self.ptz_rel_action = ActionServer(
             self,
             PtzMove,
@@ -103,7 +103,7 @@ class AxisPtzControlNode(Node):
             execute_callback=self.ptz_rel_actionHandler,
             callback_group=ReentrantCallbackGroup(),
             cancel_callback=self.cancel_callback,
-            handle_accepted_callback=self.handle_accepted_callback)
+            handle_accepted_callback=self.handle_accepted_callback_indirect)
         self.vel_action = ActionServer(
             self,
             PtzMove,
@@ -111,7 +111,7 @@ class AxisPtzControlNode(Node):
             execute_callback=self.vel_actionHandler,
             callback_group=ReentrantCallbackGroup(),
             cancel_callback=self.cancel_callback,
-            handle_accepted_callback=self.handle_accepted_callback)
+            handle_accepted_callback=self.handle_accepted_callback_direct)
         self.tf_ptz_abs_action = ActionServer(
             self,
             PtzRelTo,
@@ -119,7 +119,7 @@ class AxisPtzControlNode(Node):
             execute_callback=self.tf_ptz_abs_actionHandler,
             callback_group=ReentrantCallbackGroup(),
             cancel_callback=self.cancel_callback,
-            handle_accepted_callback=self.handle_accepted_callback)
+            handle_accepted_callback=self.handle_accepted_callback_indirect)
         self.frame_ptz_action = ActionServer(
             self,
             PtzFrame,
@@ -127,7 +127,7 @@ class AxisPtzControlNode(Node):
             execute_callback=self.frame_ptz_actionHandler,
             callback_group=ReentrantCallbackGroup(),
             cancel_callback=self.cancel_callback,
-            handle_accepted_callback=self.handle_accepted_callback)
+            handle_accepted_callback=self.handle_accepted_callback_indirect)
 
         self.last_state_at = self.get_clock().now()
         self.last_command_at = self.get_clock().now()
@@ -232,16 +232,27 @@ class AxisPtzControlNode(Node):
             self.joint_state_pub.publish(js)
             rate.sleep()
 
-    def handle_accepted_callback(self, goal_handle):
+# We need a seperate accepted goal callback for "indirect" actions:
+# (position_rel, position_abs_tf, and frame_ptz) since these call the "direct" action position_abs
+# having a seperate goal handle for each means we can have an indirect and direct at the same time
+# but not two in either category
+    def handle_accepted_callback_direct(self, goal_handle):
         with self._goal_lock:
-            # TODO(MIKE): don't we need two goals if we recieve a relative goal??
             # This server only allows one goal at a time
             if self._goal_handle is not None and self._goal_handle.is_active:
                 self.get_logger().info('Aborting previous goal')
                 # Abort the existing goal
                 self._goal_handle.abort()
             self._goal_handle = goal_handle
-
+        goal_handle.execute()
+    def handle_accepted_callback_indirect(self, goal_handle):
+        with self._goal_lock_ind:
+            # This server only allows one goal at a time
+            if self._goal_handle_ind is not None and self._goal_handle_ind.is_active:
+                self.get_logger().info('Aborting previous goal')
+                # Abort the existing goal
+                self._goal_handle_ind.abort()
+            self._goal_handle_ind = goal_handle
         goal_handle.execute()
 
     def cancel_callback(self, goal_handle):

@@ -9,6 +9,7 @@ from rclpy.executors import MultiThreadedExecutor
 import math
 import tf2_ros
 import tf2_geometry_msgs
+from threading import Lock
 import transforms3d
 import uuid
 
@@ -61,6 +62,10 @@ class SimulatedPtzCameraNode(Node):
 
         self.bridge = CvBridge()
 
+        self._goal_handle = None
+        self._goal_handle_ind = None
+        self._goal_lock = Lock()
+        self._goal_lock_ind = Lock()
         self.ptz_abs_action = ActionServer(
             self,
             PtzMove,
@@ -68,7 +73,7 @@ class SimulatedPtzCameraNode(Node):
             execute_callback=self.ptz_abs_actionHandler,
             callback_group=ReentrantCallbackGroup(),
             cancel_callback=self.cancel_callback,
-            handle_accepted_callback=self.handle_accepted_callback)
+            handle_accepted_callback=self.handle_accepted_callback_direct)
         self.ptz_rel_action = ActionServer(
             self,
             PtzMove,
@@ -76,7 +81,7 @@ class SimulatedPtzCameraNode(Node):
             execute_callback=self.ptz_rel_actionHandler,
             callback_group=ReentrantCallbackGroup(),
             cancel_callback=self.cancel_callback,
-            handle_accepted_callback=self.handle_accepted_callback)
+            handle_accepted_callback=self.handle_accepted_callback_indirect)
         self.tf_ptz_abs_action = ActionServer(
             self,
             PtzRelTo,
@@ -84,7 +89,7 @@ class SimulatedPtzCameraNode(Node):
             execute_callback=self.tf_ptz_abs_actionHandler,
             callback_group=ReentrantCallbackGroup(),
             cancel_callback=self.cancel_callback,
-            handle_accepted_callback=self.handle_accepted_callback)
+            handle_accepted_callback=self.handle_accepted_callback_indirect)
         self.frame_ptz_action = ActionServer(
             self,
             PtzFrame,
@@ -92,7 +97,7 @@ class SimulatedPtzCameraNode(Node):
             execute_callback=self.frame_ptz_actionHandler,
             callback_group=ReentrantCallbackGroup(),
             cancel_callback=self.cancel_callback,
-            handle_accepted_callback=self.handle_accepted_callback)
+            handle_accepted_callback=self.handle_accepted_callback_indirect)
         self.run()
 
     def run(self):
@@ -131,16 +136,27 @@ class SimulatedPtzCameraNode(Node):
             psn.mode = PtzState.MODE_IDLE
         self.state_pub.publish(psn)
 
-    def handle_accepted_callback(self, goal_handle):
+# We need a seperate accepted goal callback for "indirect" actions:
+# (position_rel, position_abs_tf, and frame_ptz) since these call the "direct" action position_abs
+# having a seperate goal handle for each means we can have an indirect and direct at the same time
+# but not two in either category
+    def handle_accepted_callback_direct(self, goal_handle):
         with self._goal_lock:
-            # TODO(MIKE): don't we need two goals if we recieve a relative goal??
             # This server only allows one goal at a time
             if self._goal_handle is not None and self._goal_handle.is_active:
                 self.get_logger().info('Aborting previous goal')
                 # Abort the existing goal
                 self._goal_handle.abort()
             self._goal_handle = goal_handle
-
+        goal_handle.execute()
+    def handle_accepted_callback_indirect(self, goal_handle):
+        with self._goal_lock_ind:
+            # This server only allows one goal at a time
+            if self._goal_handle_ind is not None and self._goal_handle_ind.is_active:
+                self.get_logger().info('Aborting previous goal')
+                # Abort the existing goal
+                self._goal_handle_ind.abort()
+            self._goal_handle_ind = goal_handle
         goal_handle.execute()
 
     def cancel_callback(self, goal_handle):
