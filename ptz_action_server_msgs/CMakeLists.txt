@@ -1,28 +1,39 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.8)
 project(ptz_action_server_msgs)
 
-find_package(catkin REQUIRED COMPONENTS
-  genmsg
-  actionlib_msgs
-  std_msgs
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+find_package(ament_cmake REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+
+set(msg_files
+  "msg/PtzState.msg"
 )
 
-add_action_files(
-  FILES
-  Ptz.action
-  PtzFrame.action
-  PtzRelTo.action
+set(action_files
+  "action/Ptz.action"
+  "action/PtzFrame.action"
+  "action/PtzRelTo.action"
 )
 
-add_message_files(
-  FILES
-  PtzState.msg
+rosidl_generate_interfaces(${PROJECT_NAME}
+  ${msg_files}
+  ${action_files}
+  DEPENDENCIES geometry_msgs std_msgs
 )
 
-generate_messages(
-  DEPENDENCIES
-  actionlib_msgs
-  std_msgs
-)
+ament_export_dependencies(rosidl_default_runtime)
 
-catkin_package(CATKIN_DEPENDS actionlib_msgs genmsg std_msgs)
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  ament_lint_auto_find_test_dependencies()
+endif()
+
+ament_package()
+
+install(DIRECTORY msg
+  DESTINATION lib/${PROJECT_NAME})
