@@ -73,7 +73,7 @@ class AxisPtzControlNode:
 
         # allow 1 degree of error when tracking the position feedback
         # this is a little coarse, but the camera isn't a high-precision piece of kit anyway
-        self.position_tolerance = deg2rad(1.0)
+        self.position_tolerance = deg2rad(2.0)
 
         # allow some tolerance in the zoom. This is a big range
         self.zoom_tolerance = 10.0
