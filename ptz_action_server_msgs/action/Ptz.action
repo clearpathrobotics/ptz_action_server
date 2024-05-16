@@ -1,9 +1,19 @@
+# Position control: the angle to rotate the camera horizontally in radians
+# Velocity control: the speed to rotate the camera horizontally in rad/s
 float32 pan
+
+# Position control: the angle to rotate the camera vertically in radians
+# Velocity control: the speed to rotate the camera vertically in rad/s
 float32 tilt
+
+# Position control: the desired zoom level in "x" (e.g. 1-24 for a 24x optical zoom)
+# Velocity control: -1 to +1 indicating how fast the zoom should change (speed based on camera hardware)
 float32 zoom
 ---
 bool success
 ---
+# Position control the radians/zoom level remaining to reach the requested goal
+# Velocity control: the current speed of the pan/tilt/zoom
 float32 pan_remaining
 float32 tilt_remaining
 float32 zoom_remaining
