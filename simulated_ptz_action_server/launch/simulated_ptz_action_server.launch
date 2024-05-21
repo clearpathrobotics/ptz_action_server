@@ -1,17 +1,18 @@
 <?xml version="1.0" ?>
 <launch>
   <arg name="camera_ns" default="/sensors/camera_0" />
-  <arg name="limits_config" default="$(find simulated_ptz_action_server)/config/limits.yaml" />
+  <arg name="limits_config" default="$(find-pkg-share simulated_ptz_action_server)/config/limits.yaml" />
   <arg name="camera_name" default="ptz_camera" />
 
-  <rosparam command="load" file="$(find simulated_ptz_action_server)/config/ptz_controllers.yaml" />
-  <node name="ptz_action_server_spawner" pkg="controller_manager" type="spawner"
-        args="pan_position_controller tilt_position_controller"/>
-
-  <group ns="$(arg camera_ns)">
-    <node name="ptz_action_server_node" pkg="simulated_ptz_action_server" type="ptz_camera_sim_node">
-      <param name="camera_base_link" value="$(arg camera_name)_base_link" />
-      <rosparam command="load" file="$(arg limits_config)" subst_value="true" />
+  <node name="ptz_action_server_spawner" pkg="controller_manager" exec="spawner"
+  args="pan_position_controller tilt_position_controller"/>
+  
+  <param from="$(find-pkg-share simulated_ptz_action_server)/config/ptz_controllers.yaml" />
+  <group>
+    <push_ros_namespace namespace="$(var camera_ns)"/>
+    <node name="ptz_action_server_node" pkg="simulated_ptz_action_server" exec="ptz_camera_sim_node">
+      <param name="camera_base_link" value="$(var camera_name)_base_link"/>
+      <param from="$(var limits_config)"/>
     </node>
   </group>
 </launch>

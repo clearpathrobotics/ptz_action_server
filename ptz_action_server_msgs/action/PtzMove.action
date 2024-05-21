@@ -3,6 +3,7 @@ float32 tilt
 float32 zoom
 ---
 bool success
+string message
 ---
 float32 pan_remaining
 float32 tilt_remaining

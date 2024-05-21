@@ -7,6 +7,7 @@ float32 zoom
 string frame_id
 ---
 bool success
+string message
 ---
 float32 pan_remaining
 float32 tilt_remaining

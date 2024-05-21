@@ -1,28 +1,16 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.5)
 project(ptz_action_server_msgs)
 
-find_package(catkin REQUIRED COMPONENTS
-  genmsg
-  actionlib_msgs
-  std_msgs
+find_package(rosidl_default_generators REQUIRED)
+find_package(ament_cmake REQUIRED)
+set(CMAKE_CXX_STANDARD 14)
+
+rosidl_generate_interfaces(
+    ${PROJECT_NAME}
+        action/PtzMove.action
+        action/PtzFrame.action
+        action/PtzRelTo.action
+        msg/PtzState.msg
 )
 
-add_action_files(
-  FILES
-  Ptz.action
-  PtzFrame.action
-  PtzRelTo.action
-)
-
-add_message_files(
-  FILES
-  PtzState.msg
-)
-
-generate_messages(
-  DEPENDENCIES
-  actionlib_msgs
-  std_msgs
-)
-
-catkin_package(CATKIN_DEPENDS actionlib_msgs genmsg std_msgs)
+ament_package()
