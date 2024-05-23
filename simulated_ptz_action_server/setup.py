@@ -7,7 +7,7 @@ package_name = 'simulated_ptz_action_server'
 
 setup(
     name=package_name,
-    version='0.2.0',
+    version='2.0.0',
     packages=[package_name],
     data_files=[
         # Install marker file in the package index
