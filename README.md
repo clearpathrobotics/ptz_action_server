@@ -14,13 +14,14 @@ inter-operability, the action server should be implemented to support these cond
 hardware:
 
 - pan and tilt are expressed in radians
-- pan has a maximum allowable range of -pi to +pi, though cameras with a restricted field of motion may support
+- pan has a maximum allowable range of -pi to +pi, though cameras with a restricted range of motion may support
   a subset of that range
-- tilt has a maximum allowable range of -pi/2 to +pi/2, though cameras with a restricted field of motion may suport
+- tilt has a maximum allowable range of -pi/2 to +pi/2, though cameras with a restricted range of motion may suport
   a subset of that range
-- positive pan indicates clockwise rotation, negative pan indicates anticlockwise rotation when the camera is viewed
-  from above
-- positive tilt will pitch the camera upwards, negative tilt will pitch the camera downwards
+- positive pan indicates clockwise rotation, negative pan indicates anticlockwise rotation, relative to the camera's
+  base link
+- positive tilt will pitch the camera upwards, negative tilt will pitch the camera downwards, relative to the
+  camera's base link
 - zoom is the X-factor of the camera's zoom range. For example, a camera with a 1-24x zoom shall accept zoom values
   in the range of 1-24.
 - if the camera does not support zoom (e.g. the Flir D46 PTU), the zoom field is ignored
