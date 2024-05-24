@@ -2,8 +2,8 @@
 Changelog for package ptz_action_server_msgs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.0.2 (2024-05-24)
+------------------
 * Add dependency on action_msgs
 * Contributors: Chris Iverach-Brereton
 
