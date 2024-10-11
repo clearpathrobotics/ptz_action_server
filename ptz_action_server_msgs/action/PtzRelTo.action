@@ -1,6 +1,4 @@
-float32 pan
-float32 tilt
-float32 zoom
+Ptz ptz
 
 # A frame ID that we calculate the pan & tilt relative to
 # If blank the link ID is ignored and we treat this request as a normal PtzAction

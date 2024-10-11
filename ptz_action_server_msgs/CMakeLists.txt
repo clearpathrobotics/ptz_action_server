@@ -10,6 +10,7 @@ rosidl_generate_interfaces(
         action/PtzMove.action
         action/PtzFrame.action
         action/PtzRelTo.action
+        msg/Ptz.msg
         msg/PtzState.msg
 )
 
