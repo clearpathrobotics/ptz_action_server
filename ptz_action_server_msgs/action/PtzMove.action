@@ -1,10 +1,6 @@
-float32 pan
-float32 tilt
-float32 zoom
+Ptz ptz
 ---
 bool success
 string message
 ---
-float32 pan_remaining
-float32 tilt_remaining
-float32 zoom_remaining
+Ptz ptz_remaining
