@@ -2,6 +2,11 @@
 Changelog for package ptz_action_server_msgs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Added new general Ptz message (`#6 <https://github.com/clearpathrobotics/ptz_action_server/issues/6>`_)
+* Contributors: Jose Mastrangelo
+
 2.0.2 (2024-05-24)
 ------------------
 * Add dependency on action_msgs
