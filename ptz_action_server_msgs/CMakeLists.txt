@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.20)
 project(ptz_action_server_msgs)
 
 find_package(rosidl_default_generators REQUIRED)
