@@ -3,7 +3,7 @@ project(ptz_action_server_msgs)
 
 find_package(rosidl_default_generators REQUIRED)
 find_package(ament_cmake REQUIRED)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 rosidl_generate_interfaces(
     ${PROJECT_NAME}
