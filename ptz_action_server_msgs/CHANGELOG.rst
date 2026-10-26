@@ -2,8 +2,8 @@
 Changelog for package ptz_action_server_msgs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.0.4 (2026-10-26)
+------------------
 * update cmake version
 * updated cmake_minimum_vresion to 3.20
 * Contributors: José Mastrangelo
