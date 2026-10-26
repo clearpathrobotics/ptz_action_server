@@ -2,6 +2,12 @@
 Changelog for package ptz_action_server_msgs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* update cmake version
+* updated cmake_minimum_vresion to 3.20
+* Contributors: José Mastrangelo
+
 2.0.3 (2024-11-01)
 ------------------
 * Added new general Ptz message (`#6 <https://github.com/clearpathrobotics/ptz_action_server/issues/6>`_)
